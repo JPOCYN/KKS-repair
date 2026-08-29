@@ -11,6 +11,8 @@ export interface AppConfig {
   manualsDirectory: string;
   manualBundleFile: string;
   manualIndexFile: string;
+  manualRemoteBaseUrl: string | undefined;
+  manualRemoteToken: string | undefined;
   manualStorage: ManualStorage;
   configuredOrigins: string | undefined;
 }
@@ -60,6 +62,8 @@ export function loadAppConfig(
     manualsDirectory: path.resolve(workingDirectory, environment.MANUALS_DIR || "manuals"),
     manualBundleFile,
     manualIndexFile,
+    manualRemoteBaseUrl: environment.MANUAL_REMOTE_BASE_URL?.trim() || undefined,
+    manualRemoteToken: environment.MANUAL_REMOTE_TOKEN?.trim() || undefined,
     manualStorage: parseManualStorage(environment.MANUAL_STORAGE),
     configuredOrigins: environment.PUBLIC_ORIGIN,
   };

@@ -130,6 +130,7 @@ const registerSchema = z.object({
 
 function manualHealth(): Record<string, unknown> {
   if (config.manualStorage !== "local") return { storage: config.manualStorage, ready: true };
+  if (config.manualRemoteBaseUrl && config.manualRemoteToken) return { storage: "private-http", ready: true };
   if (!existsSync(config.manualIndexFile)) return { storage: "local", ready: false, reason: "index-missing" };
   try {
     const index = JSON.parse(readFileSync(config.manualIndexFile, "utf8")) as {

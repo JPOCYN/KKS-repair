@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import express from "express";
-import { createManualBundleHandler, normalizeManualPath, parseByteRange } from "./manual-bundle.js";
+import { createManualBundleHandler, createRemoteManualBundleHandler, normalizeManualPath, parseByteRange } from "./manual-bundle.js";
 
 test("manual paths are normalized without allowing traversal", () => {
   assert.equal(normalizeManualPath("/folder/html/Repair/123.html"), "folder/html/Repair/123.html");
@@ -45,5 +45,49 @@ test("serves byte ranges from a version 2 bundle part", async () => {
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("proxies authenticated byte ranges from private HTTP storage", async () => {
+  const bytes = Buffer.from("hello-world");
+  const storage = express();
+  storage.use((req, res, next) => req.get("x-kks-storage-key") === "storage-secret" ? next() : res.sendStatus(403));
+  storage.get("/manuals-index.json", (_req, res) => res.json({
+    version: 2,
+    parts: [{ file: "manuals.bundle.000", length: bytes.length }],
+    files: { "folder/file.txt": { part: 0, offset: 0, length: bytes.length } },
+  }));
+  storage.get("/manuals.bundle.000", (req, res) => {
+    const range = /^bytes=(\d+)-(\d+)$/.exec(req.get("range") || "");
+    if (!range) return res.sendStatus(416);
+    const start = Number(range[1]);
+    const end = Number(range[2]);
+    const body = bytes.subarray(start, end + 1);
+    res.status(206).set({
+      "Content-Length": String(body.length),
+      "Content-Range": `bytes ${start}-${end}/${bytes.length}`,
+    }).send(body);
+  });
+  const storageServer = storage.listen(0);
+  await new Promise<void>((resolve) => storageServer.once("listening", resolve));
+
+  const address = storageServer.address();
+  if (!address || typeof address === "string") throw new Error("Storage server did not bind to a TCP port");
+  const app = express();
+  app.use(createRemoteManualBundleHandler(`http://127.0.0.1:${address.port}`, "storage-secret"));
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  try {
+    const appAddress = server.address();
+    if (!appAddress || typeof appAddress === "string") throw new Error("Test server did not bind to a TCP port");
+    const response = await fetch(`http://127.0.0.1:${appAddress.port}/folder/file.txt`, { headers: { Range: "bytes=6-10" } });
+    assert.equal(response.status, 206);
+    assert.equal(response.headers.get("content-range"), "bytes 6-10/11");
+    assert.equal(await response.text(), "world");
+  } finally {
+    await Promise.all([
+      new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+      new Promise<void>((resolve, reject) => storageServer.close((error) => error ? reject(error) : resolve())),
+    ]);
   }
 });

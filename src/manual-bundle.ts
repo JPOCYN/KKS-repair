@@ -1,5 +1,6 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
 interface ManualBundleEntry {
@@ -144,5 +145,87 @@ export function createManualBundleHandler(bundleFile: string, indexFile: string)
     const stream = createReadStream(partFiles[partNumber]!, { start: entry.offset + relativeStart, end: entry.offset + relativeEnd });
     stream.on("error", next);
     stream.pipe(res);
+  };
+}
+
+export function createRemoteManualBundleHandler(baseUrl: string, token: string): RequestHandler {
+  const storageBase = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  let indexPromise: Promise<ManualBundleIndex> | null = null;
+
+  async function loadIndex(): Promise<ManualBundleIndex> {
+    if (!indexPromise) {
+      indexPromise = (async () => {
+        const response = await fetch(new URL("manuals-index.json", storageBase), {
+          headers: { "X-KKS-Storage-Key": token },
+        });
+        if (!response.ok) throw new Error(`Remote manual index returned ${response.status}`);
+        const candidate = await response.json() as ManualBundleIndex;
+        if (!candidate.files || typeof candidate.files !== "object") throw new Error("Unsupported remote manual bundle index");
+        if (candidate.version === 1) return candidate;
+        if (candidate.version !== 2 || !Array.isArray(candidate.parts) || candidate.parts.length === 0) {
+          throw new Error("Unsupported remote manual bundle index");
+        }
+        for (const [partNumber, part] of candidate.parts.entries()) {
+          if (!/^[A-Za-z0-9._-]+$/.test(part.file) || !Number.isSafeInteger(part.length) || part.length < 0) {
+            throw new Error(`Invalid remote manual bundle part: ${partNumber}`);
+          }
+        }
+        return candidate;
+      })().catch((error) => {
+        indexPromise = null;
+        throw error;
+      });
+    }
+    return indexPromise;
+  }
+
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const index = await loadIndex();
+      const key = normalizeManualPath(req.path);
+      if (!key) return next();
+      const entry = index.files[key];
+      if (!entry) return next();
+      if (!Number.isSafeInteger(entry.offset) || !Number.isSafeInteger(entry.length) || entry.offset < 0 || entry.length < 0) {
+        throw new Error(`Invalid remote manual bundle entry: ${key}`);
+      }
+      if (entry.length === 0) {
+        res.status(200).type(path.extname(key)).setHeader("Content-Length", "0").end();
+        return;
+      }
+
+      const requestedRange = parseByteRange(req.get("range"), entry.length);
+      const relativeStart = requestedRange?.start ?? 0;
+      const relativeEnd = requestedRange?.end ?? entry.length - 1;
+      const responseLength = relativeEnd - relativeStart + 1;
+      const part = index.version === 2 ? index.parts[(entry as ShardedManualBundleEntry).part] : { file: "manuals.bundle", length: Number.MAX_SAFE_INTEGER };
+      if (!part || entry.offset + entry.length > part.length) throw new Error(`Invalid remote manual bundle entry: ${key}`);
+
+      const absoluteStart = entry.offset + relativeStart;
+      const absoluteEnd = entry.offset + relativeEnd;
+      const upstream = await fetch(new URL(part.file, storageBase), {
+        headers: {
+          "X-KKS-Storage-Key": token,
+          Range: `bytes=${absoluteStart}-${absoluteEnd}`,
+        },
+      });
+      if (upstream.status !== 206 || Number(upstream.headers.get("content-length")) !== responseLength || !upstream.body) {
+        throw new Error(`Remote manual part returned an invalid range response (${upstream.status})`);
+      }
+
+      res.status(requestedRange ? 206 : 200);
+      res.type(path.extname(key));
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Content-Length", String(responseLength));
+      if (requestedRange) res.setHeader("Content-Range", `bytes ${relativeStart}-${relativeEnd}/${entry.length}`);
+      if (req.method === "HEAD") {
+        upstream.body.cancel().catch(() => undefined);
+        res.end();
+        return;
+      }
+      Readable.fromWeb(upstream.body as never).on("error", next).pipe(res);
+    } catch (error) {
+      next(error);
+    }
   };
 }

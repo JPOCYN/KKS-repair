@@ -59,7 +59,9 @@ private-data/manuals.bundle.000 (and the remaining numbered parts)
 private-data/manuals-index.json
 ```
 
-The application reads the files server-side and exposes handbook entries only through the authenticated `/manuals/*` route. A deployment must never package these private files or commit them to Git. After every deployment, verify their exact sizes and test both an authenticated manual request and an unauthenticated rejection.
+The application exposes handbook entries only through the authenticated `/manuals/*` route. A deployment must never package these private files or commit them to Git. After every deployment, verify their exact sizes and test both an authenticated manual request and an unauthenticated rejection.
+
+Hostinger managed Node.js builds run outside `public_html` and cannot directly mount its large persistent files. On that platform, set `MANUAL_REMOTE_BASE_URL` to the protected `private-data` URL and `MANUAL_REMOTE_TOKEN` to a long random server-only value. The `private-data/.htaccess` rule must require the matching `X-KKS-Storage-Key` header and set `Cache-Control: private, no-store`. The Node.js adapter then range-proxies only authenticated handbook requests; ordinary requests to `private-data` remain forbidden.
 
 The customer interface is English-only. Recovered Chinese and Japanese service-sheet branches are excluded at the presentation boundary, and recovered non-English vehicle descriptions receive a neutral English service-information summary. The source recovery data remains unchanged for audit and rollback.
 
