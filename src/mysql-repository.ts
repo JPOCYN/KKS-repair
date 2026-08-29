@@ -318,15 +318,12 @@ export class MySqlRepository implements AppRepository {
   async getSessionUser(token: string | undefined) {
     if (!token) return null;
     const [rows] = await this.pool.execute<QueryRow[]>(`
-      SELECT u.id,u.email,u.name,u.role,s.csrf_token AS csrfToken
+      SELECT u.id,u.email,u.name,u.role,s.csrf_token AS csrfToken,
+        u.vip_status AS vipStatus,u.vip_expires_at AS vipExpiresAt
       FROM sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=? AND s.expires_at>? AND u.status=1
-        AND (u.role='admin' OR (u.vip_status=1 AND (
-          u.vip_expires_at IS NULL OR
-          CASE WHEN CHAR_LENGTH(u.vip_expires_at)=10 THEN CONCAT(u.vip_expires_at,'T23:59:59.999Z') ELSE u.vip_expires_at END>?
-        )))
       LIMIT 1
-    `, [sha256(token), new Date().toISOString(), new Date().toISOString()]);
+    `, [sha256(token), new Date().toISOString()]);
     const row = rows[0];
     if (!row) return null;
     return {
@@ -335,6 +332,8 @@ export class MySqlRepository implements AppRepository {
       name: String(row.name),
       role: row.role as "admin" | "customer",
       csrfToken: String(row.csrfToken),
+      vipStatus: Number(row.vipStatus) === 1,
+      vipExpiresAt: row.vipExpiresAt ? String(row.vipExpiresAt) : null,
     };
   }
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { SessionUser } from "./db.js";
 import {
+  accessStatusView,
   adminCodesView,
   adminMemberFormView,
   adminMembersView,
@@ -22,6 +23,8 @@ const user: SessionUser = {
   name: "Workshop Member",
   role: "customer",
   csrfToken: "csrf",
+  vipStatus: true,
+  vipExpiresAt: null,
 };
 
 test("removes non-English manual branches and all of their descendants", () => {
@@ -70,6 +73,8 @@ test("public landing page includes SEO, GEO-friendly answers, future coverage, a
   assert.match(html, /McLaren available now/);
   assert.match(html, /Ferrari and Lamborghini planned/);
   assert.match(html, /Supercar Docs/);
+  assert.match(html, /<title>Supercar Docs \| Supercar Repair Manuals &amp; Workshop Library<\/title>/);
+  assert.match(html, /CollectionPage/);
   assert.match(html, /does not own, represent, endorse, or claim affiliation/);
   assert.match(html, /Member sign in/);
   assert.match(html, /href="\/privacy"/);
@@ -83,6 +88,8 @@ test("registration and public policy pages provide launch-ready privacy and take
   const terms = termsView("https://supercardocs.com");
   const contact = contactView("https://supercardocs.com");
   assert.match(registration, /name="acceptPolicies"/);
+  assert.match(registration, /action="\/login"/);
+  assert.match(registration, /action="\/register"/);
   assert.match(registration, /Personal Information Collection Statement/);
   assert.doesNotMatch(registration, /name="name"/);
   assert.match(privacy, /Data we collect/);
@@ -91,6 +98,14 @@ test("registration and public policy pages provide launch-ready privacy and take
   assert.match(contact, /name="requestType"/);
   assert.match(contact, /Copyright or takedown/);
   assert.match(contact, /name="website"/);
+});
+
+test("expired members keep an account status page while the library remains unavailable", () => {
+  const expiredUser: SessionUser = { ...user, vipExpiresAt: "2020-01-01" };
+  const html = accessStatusView(expiredUser);
+  assert.match(html, /library access has expired/i);
+  assert.match(html, /Account[\s\S]*Enabled/);
+  assert.match(html, /manual files, and PDFs remain locked/);
 });
 
 test("admin views expose quick code creation and member expiry actions", () => {

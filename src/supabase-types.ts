@@ -102,6 +102,8 @@ export type Database = {
           name: string;
           role: "admin" | "customer";
           csrf_token: string;
+          vip_status: boolean;
+          vip_expires_at: string | null;
         }>;
       };
       register_app_user: {

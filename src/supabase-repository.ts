@@ -112,6 +112,8 @@ export class SupabaseRepository implements AppRepository {
       name: row.name,
       role: row.role,
       csrfToken: row.csrf_token,
+      vipStatus: Boolean(row.vip_status),
+      vipExpiresAt: row.vip_expires_at || null,
     };
   }
 

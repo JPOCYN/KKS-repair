@@ -62,6 +62,9 @@ try {
   const landingHtml = await landing.text();
   assert(landing.status === 200, "Landing page failed");
   assert(landingHtml.includes("FAQPage") && landingHtml.includes("Independent content notice"), "Landing SEO or disclaimer is missing");
+  assert(landingHtml.includes("Supercar Docs | Supercar Repair Manuals &amp; Workshop Library"), "Brand-first page title is missing");
+  const authHtml = await (await request("/login")).text();
+  assert(authHtml.includes('action="/login"') && authHtml.includes('action="/register"'), "Combined sign-in and registration page is missing");
   assert((await request("/robots.txt")).status === 200, "robots.txt failed");
   assert((await request("/sitemap.xml")).status === 200, "sitemap.xml failed");
   const privateReader = await request("/modern-manuals/index.html");
@@ -152,6 +155,38 @@ try {
   });
   assert(memberUpdated.status === 302, "Member update failed");
 
+  const inactiveMemberCreated = await form("/admin/members", cookie, {
+    _csrf: csrf,
+    email: "inactive-customer@example.com",
+    contactAddress: "",
+    password: "inactive-customer-password",
+    vipExpiresAt: "",
+    status: "1",
+  });
+  assert(inactiveMemberCreated.status === 302, "Inactive member creation failed");
+  const inactiveMembersHtml = await (await request("/admin/members", { headers: { Cookie: cookie } })).text();
+  const inactiveMemberId = inactiveMembersHtml.match(/inactive-customer@example\.com[\s\S]*?\/admin\/members\/(\d+)\/edit/)?.[1];
+  assert(inactiveMemberId, "Inactive member was not listed");
+  const inactiveLogin = await form("/login", "", { email: "inactive-customer@example.com", password: "inactive-customer-password" });
+  assert(inactiveLogin.status === 302 && inactiveLogin.headers.get("location") === "/access", "Inactive library member should reach access status");
+  const inactiveCookie = inactiveLogin.headers.get("set-cookie")?.split(";", 1)[0];
+  assert(inactiveCookie, "Inactive member session cookie is missing");
+  assert((await request("/access", { headers: { Cookie: inactiveCookie } })).status === 200, "Access status page failed");
+  const lockedVehicles = await request("/vehicles", { headers: { Cookie: inactiveCookie } });
+  const lockedManual = await request("/modern-manuals/index.html", { headers: { Cookie: inactiveCookie } });
+  assert(lockedVehicles.status === 302 && lockedVehicles.headers.get("location") === "/access", "Inactive member reached vehicle library");
+  assert(lockedManual.status === 302 && lockedManual.headers.get("location") === "/access", "Inactive member reached protected manuals");
+  const disabledMember = await form(`/admin/members/${inactiveMemberId}`, cookie, {
+    _csrf: csrf,
+    email: "inactive-customer@example.com",
+    contactAddress: "",
+    password: "",
+    vipExpiresAt: "",
+  });
+  assert(disabledMember.status === 302, "Member disable failed");
+  const disabledLogin = await form("/login", "", { email: "inactive-customer@example.com", password: "inactive-customer-password" });
+  assert(disabledLogin.status === 401, "Disabled account was allowed to sign in");
+
   const vehicleCreated = await form("/admin/vehicles", cookie, {
     _csrf: csrf,
     brandId: "1",
@@ -196,6 +231,7 @@ try {
       "email-only-registration-and-used-code-audit",
       "code-create-update-and-bulk-generate",
       "member-create-update-and-extend",
+      "account-disable-and-library-access-separation",
       "vehicle-create-and-update",
     ],
   }, null, 2));

@@ -1,9 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 72" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 72" role="img" aria-labelledby="title desc">
   <title id="title">Supercar Docs</title>
-  <desc id="desc">Minimal amber S document mark with the Supercar Docs wordmark.</desc>
-  <rect x="4" y="4" width="64" height="64" rx="15" fill="#0b0e13" stroke="#343d4b"/>
-  <path d="M56 17H33c-8 0-13 4.8-13 11.5S25 40 33 40h14c2.2 0 3.5 1.1 3.5 3s-1.3 3-3.5 3H24v10h23c8.6 0 14-5 14-13s-5.4-13-14-13H33c-1.8 0-3-.7-3-2.2s1.2-2.8 3-2.8h23z" fill="#ffb21f"/>
-  <path d="M56 17v9h-9z" fill="#ffd477" opacity=".9"/>
-  <text x="86" y="35" fill="#f6f7f9" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="2">SUPERCAR DOCS</text>
-  <text x="87" y="54" fill="#9ba6b5" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="2.2">REPAIR MANUAL LIBRARY</text>
+  <desc id="desc">SD document mark with the Supercar Docs wordmark.</desc>
+  <rect x="4" y="4" width="64" height="64" rx="14" fill="#0b0e13" stroke="#343d4b"/>
+  <path d="M21 13h23l8 8v38H21z" fill="#151b24" stroke="#ffb21f" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M44 13v9h8" fill="none" stroke="#ffb21f" stroke-width="3" stroke-linejoin="round"/>
+  <text x="36.5" y="45" text-anchor="middle" fill="#ffd477" font-family="Arial,sans-serif" font-size="18" font-weight="900" letter-spacing="-1">SD</text>
+  <text x="88" y="35" fill="#f6f7f9" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="2">SUPERCAR DOCS</text>
+  <text x="89" y="54" fill="#9ba6b5" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="2.2">REPAIR MANUAL LIBRARY</text>
 </svg>

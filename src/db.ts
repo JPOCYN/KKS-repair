@@ -13,6 +13,8 @@ export interface SessionUser {
   name: string;
   role: "admin" | "customer";
   csrfToken: string;
+  vipStatus: boolean;
+  vipExpiresAt: string | null;
 }
 
 export interface RecoveredMember {
@@ -385,15 +387,12 @@ export function createSession(db: AppDatabase, userId: number): { token: string;
 export function getSessionUser(db: AppDatabase, token: string | undefined): SessionUser | null {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.email, u.name, u.role, s.csrf_token AS csrfToken
+    SELECT u.id, u.email, u.name, u.role, s.csrf_token AS csrfToken,
+      u.vip_status AS vipStatus, u.vip_expires_at AS vipExpiresAt
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = 1
-      AND (u.role = 'admin' OR (u.vip_status = 1 AND (
-        u.vip_expires_at IS NULL OR
-        CASE WHEN length(u.vip_expires_at) = 10 THEN u.vip_expires_at || 'T23:59:59.999Z' ELSE u.vip_expires_at END > ?
-      )))
-  `).get(sha256(token), new Date().toISOString(), new Date().toISOString()) as SessionUser | undefined;
-  return row || null;
+  `).get(sha256(token), new Date().toISOString()) as (Omit<SessionUser, "vipStatus"> & { vipStatus: number }) | undefined;
+  return row ? { ...row, vipStatus: row.vipStatus === 1 } : null;
 }
 
 export function deleteSession(db: AppDatabase, token: string | undefined): void {

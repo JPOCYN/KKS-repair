@@ -7,6 +7,7 @@ import helmet from "helmet";
 import { z } from "zod";
 import { loadAppConfig } from "./config.js";
 import type { SessionUser } from "./db.js";
+import { hasLibraryAccess } from "./access.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createManualStorageHandler } from "./manual-storage.js";
 import { isAllowedWriteOrigin } from "./origin.js";
@@ -25,6 +26,7 @@ import {
   adminVehicleFormView,
   adminVehiclesView,
   adminView,
+  accessStatusView,
   contactView,
   landingView,
   loginView,
@@ -125,6 +127,18 @@ function requireUser(req: AuthenticatedRequest, res: Response, next: NextFunctio
   next();
 }
 
+function requireLibraryAccess(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (!req.sessionUser) {
+    res.redirect("/login");
+    return;
+  }
+  if (!hasLibraryAccess(req.sessionUser)) {
+    res.redirect("/access");
+    return;
+  }
+  next();
+}
+
 function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   if (!req.sessionUser) {
     res.redirect("/login");
@@ -147,13 +161,13 @@ function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunctio
 
 app.use(recoveredDatabaseMiddleware);
 app.use(sessionMiddleware);
-app.use("/modern-manuals/pdfs", requireUser, (_req, res) => res.status(404).send("Manual file not found"));
-app.use("/modern-manuals", requireUser, express.static(config.modernManualsDirectory, {
+app.use("/modern-manuals/pdfs", requireLibraryAccess, (_req, res) => res.status(404).send("Manual file not found"));
+app.use("/modern-manuals", requireLibraryAccess, express.static(config.modernManualsDirectory, {
   fallthrough: true,
   index: "index.html",
   maxAge: config.production ? "7d" : 0,
 }), (_req, res) => res.status(404).send("Reader file not found"));
-app.use("/manuals", requireUser, await createManualStorageHandler(config));
+app.use("/manuals", requireLibraryAccess, await createManualStorageHandler(config));
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
   if (!isAllowedWriteOrigin({
@@ -236,12 +250,12 @@ app.get("/sitemap.xml", (_req, res) => {
 });
 
 app.get("/login", (req: AuthenticatedRequest, res) => {
-  if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : "/vehicles");
+  if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : hasLibraryAccess(req.sessionUser) ? "/vehicles" : "/access");
   res.send(loginView());
 });
 
 app.get("/register", (req: AuthenticatedRequest, res) => {
-  if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : "/vehicles");
+  if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : hasLibraryAccess(req.sessionUser) ? "/vehicles" : "/access");
   res.send(registerView());
 });
 
@@ -294,19 +308,11 @@ app.post("/login", loginLimiter, async (req: AuthenticatedRequest, res) => {
   if (!user || !user.status || !verifyPassword(parsed.data.password, user.passwordHash)) {
     return res.status(401).send(loginView("Email or password is incorrect."));
   }
-  const accessExpiry = user.vipExpiresAt && /^\d{4}-\d{2}-\d{2}$/.test(user.vipExpiresAt)
-    ? `${user.vipExpiresAt}T23:59:59.999Z`
-    : user.vipExpiresAt;
-  const accessExpiryTime = accessExpiry ? new Date(accessExpiry).valueOf() : null;
-  const accessExpired = accessExpiryTime !== null && (!Number.isFinite(accessExpiryTime) || accessExpiryTime <= Date.now());
-  if (user.role === "customer" && (!user.vipStatus || accessExpired)) {
-    return res.status(403).send(loginView("Your library access is inactive or expired. Contact the administrator to renew access."));
-  }
   const session = await repository.createSession(user.id);
   const cookie = [`kks_session=${encodeURIComponent(session.token)}`, "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=43200"];
   if (config.production) cookie.push("Secure");
   res.setHeader("Set-Cookie", cookie.join("; "));
-  res.redirect(user.role === "admin" ? "/admin" : "/vehicles");
+  res.redirect(user.role === "admin" ? "/admin" : hasLibraryAccess(user) ? "/vehicles" : "/access");
 });
 
 app.post("/logout", requireUser, requireCsrf, async (req: AuthenticatedRequest, res) => {
@@ -319,12 +325,17 @@ app.get("/", (req: AuthenticatedRequest, res) => {
   res.send(landingView(req.sessionUser, publicSiteOrigin));
 });
 
-app.get("/vehicles", requireUser, async (req: AuthenticatedRequest, res) => {
+app.get("/access", requireUser, (req: AuthenticatedRequest, res) => {
+  if (req.sessionUser!.role === "admin") return res.redirect("/admin");
+  res.send(accessStatusView(req.sessionUser!));
+});
+
+app.get("/vehicles", requireLibraryAccess, async (req: AuthenticatedRequest, res) => {
   const cars = await repository.listVisibleVehicles();
   res.send(vehicleListView(req.sessionUser!, cars));
 });
 
-app.get("/vehicles/:id", requireUser, async (req: AuthenticatedRequest, res) => {
+app.get("/vehicles/:id", requireLibraryAccess, async (req: AuthenticatedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(404).send("Not found");
   const detail = await repository.getVehicleDetail(id);

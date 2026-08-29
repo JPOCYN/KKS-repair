@@ -88,19 +88,19 @@ try {
   const readerHtml = await reader.text();
   assert(reader.status === 200 && readerHtml.includes("Supercar Docs manual reader"), "Modern reader HTML failed");
   assert(readerHtml.includes("Independent content notice"), "Reader disclaimer is missing");
-  assert(readerHtml.includes("reader.css?v=20260829-3"), "Reader stylesheet cache revision is missing");
-  assert(readerHtml.includes("reader.js?v=20260829-3"), "Reader script cache revision is missing");
+  assert(readerHtml.includes("reader.css?v=20260829-4"), "Reader stylesheet cache revision is missing");
+  assert(readerHtml.includes("reader.js?v=20260829-4"), "Reader script cache revision is missing");
   assert(readerHtml.includes('id="procedureTabs"'), "Procedure information tabs are missing");
   assert(!readerHtml.includes("copyLinkButton"), "Copy-link control should not be rendered");
   assert(readerHtml.includes('id="textScaleValue"'), "Visible text-scale status is missing");
 
-  const readerCss = await (await request("/modern-manuals/reader.css?v=20260829-3", { headers: authenticatedHeaders })).text();
+  const readerCss = await (await request("/modern-manuals/reader.css?v=20260829-4", { headers: authenticatedHeaders })).text();
   assert(readerCss.includes(".reader-state[hidden] { display: none; }"), "Completed loading state is not hidden");
   assert(readerCss.includes(".procedure-tabs[hidden] { display: none; }"), "Procedure tabs hidden state is missing");
   assert(readerCss.includes("position: static !important"), "Legacy absolute-positioned tables are not normalized");
   assert(readerCss.includes('[style*="font-size" i]'), "Legacy fixed font sizes are not normalized");
 
-  const readerScript = await (await request("/modern-manuals/reader.js?v=20260829-3", { headers: authenticatedHeaders })).text();
+  const readerScript = await (await request("/modern-manuals/reader.js?v=20260829-4", { headers: authenticatedHeaders })).text();
   assert(readerScript.includes("renderProcedureTabs(sourceDocument, pageUrl)"), "Procedure tab rendering is missing");
   assert(readerScript.includes("changeTextScale(.1)"), "Text-size controls do not use the visible scale step");
 
