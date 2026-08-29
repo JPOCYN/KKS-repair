@@ -53,21 +53,33 @@ export function parseByteRange(header: string | undefined, length: number): Byte
 }
 
 export function createManualBundleHandler(bundleFile: string, indexFile: string): RequestHandler {
-  if (!existsSync(bundleFile) || !existsSync(indexFile)) return (_req, _res, next) => next();
-  const index = JSON.parse(readFileSync(indexFile, "utf8")) as ManualBundleIndex;
-  if (index.version !== 1 || !index.files || typeof index.files !== "object") throw new Error("Unsupported manual bundle index");
-  const bundleBytes = statSync(bundleFile).size;
-  for (const [name, entry] of Object.entries(index.files)) {
-    if (!Number.isSafeInteger(entry.offset) || !Number.isSafeInteger(entry.length) || entry.offset < 0 || entry.length < 0 || entry.offset + entry.length > bundleBytes) {
-      throw new Error(`Invalid manual bundle entry: ${name}`);
+  let index: ManualBundleIndex | null = null;
+
+  function loadIndex(): boolean {
+    if (index) return true;
+    if (!existsSync(bundleFile) || !existsSync(indexFile)) return false;
+    const candidate = JSON.parse(readFileSync(indexFile, "utf8")) as ManualBundleIndex;
+    if (candidate.version !== 1 || !candidate.files || typeof candidate.files !== "object") throw new Error("Unsupported manual bundle index");
+    const bundleBytes = statSync(bundleFile).size;
+    for (const [name, entry] of Object.entries(candidate.files)) {
+      if (!Number.isSafeInteger(entry.offset) || !Number.isSafeInteger(entry.length) || entry.offset < 0 || entry.length < 0 || entry.offset + entry.length > bundleBytes) {
+        throw new Error(`Invalid manual bundle entry: ${name}`);
+      }
     }
+    index = candidate;
+    console.log(`Manual bundle ready: ${Object.keys(candidate.files).length} files`);
+    return true;
   }
-  console.log(`Manual bundle ready: ${Object.keys(index.files).length} files`);
 
   return (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      if (!loadIndex()) return next();
+    } catch (error) {
+      return next(error);
+    }
     const key = normalizeManualPath(req.path);
     if (!key) return next();
-    const entry = index.files[key];
+    const entry = index!.files[key];
     if (!entry) return next();
     if (entry.length === 0) {
       res.status(200).type(path.extname(key)).setHeader("Content-Length", "0").end();
