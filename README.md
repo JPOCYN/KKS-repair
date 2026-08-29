@@ -1,6 +1,8 @@
-# KKS Repair replacement
+# Supercar Docs
 
-Independent replacement for the former vendor-hosted KKS Repair application.
+Independent supercar repair manual library recovered from the former vendor-hosted KKS Repair application.
+
+New vehicle additions are handled as a verified deployment task rather than a routine admin action. See [`AI_VEHICLE_WORKFLOW.md`](AI_VEHICLE_WORKFLOW.md).
 
 ## GitHub checkout versus private recovery package
 

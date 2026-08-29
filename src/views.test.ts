@@ -6,9 +6,11 @@ import {
   adminCodesView,
   adminMemberFormView,
   adminMembersView,
+  adminVehiclesView,
   adminView,
   contactView,
   englishOnlyManualMenu,
+  formatAccessDuration,
   landingView,
   privacyView,
   registerView,
@@ -66,7 +68,7 @@ test("customer pages render a modern English-only interface", () => {
 });
 
 test("public landing page includes SEO, GEO-friendly answers, future coverage, and the site disclaimer", () => {
-  const html = landingView(undefined, "https://example.com");
+  const html = landingView(undefined, "https://example.com", "https://app.example.com");
   assert.match(html, /<link rel="canonical" href="https:\/\/example\.com\/">/);
   assert.match(html, /application\/ld\+json/);
   assert.match(html, /FAQPage/);
@@ -75,8 +77,17 @@ test("public landing page includes SEO, GEO-friendly answers, future coverage, a
   assert.match(html, /Supercar Docs/);
   assert.match(html, /<title>Supercar Docs \| Supercar Repair Manuals &amp; Workshop Library<\/title>/);
   assert.match(html, /CollectionPage/);
+  assert.match(html, /ItemList/);
+  assert.match(html, /supercar-workshop-hero\.jpg/);
+  assert.match(html, /How to approach McLaren front brake service information/);
+  assert.match(html, /How to troubleshoot a McLaren door latch concern/);
+  assert.match(html, /How to find the correct McLaren torque settings/);
+  assert.match(html, /Original index preview—not a copied manufacturer procedure/);
+  assert.match(html, /Independent coverage labels only/);
   assert.match(html, /does not own, represent, endorse, or claim affiliation/);
   assert.match(html, /Member sign in/);
+  assert.match(html, /href="https:\/\/app\.example\.com\/login"/);
+  assert.match(html, /href="https:\/\/app\.example\.com\/login#register"/);
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /href="\/terms"/);
   assert.match(html, /href="\/contact"/);
@@ -125,16 +136,30 @@ test("admin views expose quick code creation and member expiry actions", () => {
   }]);
   const memberForm = adminMemberFormView(user);
   const codes = adminCodesView(user, [{ id: 9, code: "USED-CODE", duration_hours: 720, is_used: 1, status: 1 }]);
+  const vehicles = adminVehiclesView(user, [{ id: 21, brand_name: "McLaren", code: "12C", name: "12C", is_show: 1 }]);
   assert.match(dashboard, /Generate an access code/);
   assert.match(dashboard, /Contact requests/);
   assert.match(dashboard, /name="durationHours"/);
   assert.match(members, /\/admin\/members\/7\/extend/);
   assert.match(members, /\+1 year/);
+  assert.match(members, /\+1 day/);
+  assert.match(members, /\+7 days/);
   assert.match(members, /data-member-filter="expired"/);
   assert.match(members, /Library access active/);
   assert.doesNotMatch(memberForm, /name="name"/);
   assert.match(codes, /action="\/admin\/codes\/bulk"/);
   assert.match(codes, /Redeemed codes remain in the Used list for audit/);
   assert.match(codes, /data-code-state="used"/);
+  assert.match(codes, /720 hours \(30 days\)/);
+  assert.doesNotMatch(vehicles, /Add vehicle/);
+  assert.match(vehicles, /\/admin\/vehicles\/21\/visibility/);
+  assert.match(vehicles, />Hide</);
   assert.match(`${dashboard}${members}`, /Independent content notice/);
+});
+
+test("authorization code access periods show useful day equivalents", () => {
+  assert.equal(formatAccessDuration(1), "1 hour");
+  assert.equal(formatAccessDuration(24), "24 hours");
+  assert.equal(formatAccessDuration(25), "25 hours (1 day)");
+  assert.equal(formatAccessDuration(168), "168 hours (7 days)");
 });

@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import os from "node:os";
 import path from "node:path";
 
 const dataDirectory = mkdtempSync(path.join(os.tmpdir(), "kks-admin-flow-"));
 const port = 38417;
 const baseUrl = `http://127.0.0.1:${port}`;
+const publicHostOrigin = `http://supercardocs.test:${port}`;
+const appHostOrigin = `http://app.supercardocs.test:${port}`;
 const adminEmail = "admin-flow@example.com";
 const adminPassword = "admin-flow-test-password";
 const server = spawn(process.execPath, ["dist/start.js"], {
@@ -17,7 +20,8 @@ const server = spawn(process.execPath, ["dist/start.js"], {
     DATA_DIR: dataDirectory,
     ADMIN_EMAIL: adminEmail,
     ADMIN_PASSWORD: adminPassword,
-    PUBLIC_ORIGIN: baseUrl,
+    PUBLIC_ORIGIN: `${publicHostOrigin},${baseUrl}`,
+    APP_ORIGIN: appHostOrigin,
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -44,6 +48,19 @@ async function request(pathname, options = {}) {
   return fetch(`${baseUrl}${pathname}`, { redirect: "manual", ...options });
 }
 
+async function requestForHost(pathname, host) {
+  return new Promise((resolve, reject) => {
+    const outgoing = httpRequest({ hostname: "127.0.0.1", port, path: pathname, headers: { Host: host } }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, location: response.headers.location, body }));
+    });
+    outgoing.on("error", reject);
+    outgoing.end();
+  });
+}
+
 async function form(pathname, cookie, values) {
   return request(pathname, {
     method: "POST",
@@ -67,6 +84,12 @@ try {
   assert(authHtml.includes('action="/login"') && authHtml.includes('action="/register"'), "Combined sign-in and registration page is missing");
   assert((await request("/robots.txt")).status === 200, "robots.txt failed");
   assert((await request("/sitemap.xml")).status === 200, "sitemap.xml failed");
+  const splitLogin = await requestForHost("/login", `supercardocs.test:${port}`);
+  assert(splitLogin.status === 302 && splitLogin.location === `${appHostOrigin}/login`, `Public login did not redirect to the app subdomain (${splitLogin.status} ${splitLogin.location})`);
+  const appHome = await requestForHost("/", `app.supercardocs.test:${port}`);
+  assert(appHome.status === 302 && appHome.location === "/login", "App subdomain root did not open member access");
+  const appRobots = await requestForHost("/robots.txt", `app.supercardocs.test:${port}`);
+  assert(appRobots.body.includes("Disallow: /"), "App subdomain is not blocked from indexing");
   const privateReader = await request("/modern-manuals/index.html");
   assert(privateReader.status === 302 && privateReader.headers.get("location") === "/login", "Modern reader is not protected");
 
@@ -218,6 +241,12 @@ try {
     isShow: "1",
   });
   assert(vehicleUpdated.status === 302, "Vehicle update failed");
+  const vehicleHidden = await form(`/admin/vehicles/${vehicleId}/visibility`, cookie, { _csrf: csrf, visible: "0" });
+  assert(vehicleHidden.status === 302, "Quick vehicle hide failed");
+  const hiddenVehiclesHtml = await (await request("/admin/vehicles", { headers: { Cookie: cookie } })).text();
+  assert(hiddenVehiclesHtml.includes("Updated Admin Flow Vehicle") && hiddenVehiclesHtml.includes(">Hidden</span>"), "Hidden vehicle state was not shown");
+  const vehicleShown = await form(`/admin/vehicles/${vehicleId}/visibility`, cookie, { _csrf: csrf, visible: "1" });
+  assert(vehicleShown.status === 302, "Quick vehicle show failed");
 
   console.log(JSON.stringify({
     passed: true,
@@ -225,6 +254,7 @@ try {
       "landing-seo",
       "site-disclaimer",
       "robots-and-sitemap",
+      "public-and-app-host-split",
       "admin-login",
       "admin-dashboard",
       "protected-modern-reader",
@@ -233,6 +263,7 @@ try {
       "member-create-update-and-extend",
       "account-disable-and-library-access-separation",
       "vehicle-create-and-update",
+      "quick-vehicle-visibility",
     ],
   }, null, 2));
 } finally {

@@ -15,6 +15,8 @@ export interface AppConfig {
   manualRemoteBaseUrl: string | undefined;
   manualRemoteToken: string | undefined;
   manualStorage: ManualStorage;
+  publicOrigin: string | undefined;
+  appOrigin: string | undefined;
   configuredOrigins: string | undefined;
 }
 
@@ -33,6 +35,8 @@ export function loadAppConfig(
   environment: NodeJS.ProcessEnv = process.env,
   workingDirectory = process.cwd(),
 ): AppConfig {
+  const publicOrigin = environment.PUBLIC_ORIGIN?.split(",")[0]?.trim() || undefined;
+  const appOrigin = environment.APP_ORIGIN?.trim() || publicOrigin;
   const requestedManualBundle = path.resolve(workingDirectory, environment.MANUAL_BUNDLE_PATH || "private-data/manuals.bundle");
   const requestedManualIndex = path.resolve(workingDirectory, environment.MANUAL_INDEX_PATH || "private-data/manuals-index.json");
   let manualBundleFile = requestedManualBundle;
@@ -48,7 +52,7 @@ export function loadAppConfig(
     const dataSibling = configuredDataDirectory
       ? (path.basename(configuredDataDirectory).toLowerCase() === "recovered" ? path.dirname(configuredDataDirectory) : configuredDataDirectory)
       : null;
-    const persistentDirectory = findPersistentPrivateDirectory(workingDirectory, environment.PUBLIC_ORIGIN) || dataSibling;
+    const persistentDirectory = findPersistentPrivateDirectory(workingDirectory, publicOrigin) || dataSibling;
     const persistentIndex = persistentDirectory && path.join(persistentDirectory, path.basename(requestedManualIndex));
     if (persistentIndex && existsSync(persistentIndex)) {
       manualIndexFile = persistentIndex;
@@ -67,6 +71,8 @@ export function loadAppConfig(
     manualRemoteBaseUrl: environment.MANUAL_REMOTE_BASE_URL?.trim() || undefined,
     manualRemoteToken: environment.MANUAL_REMOTE_TOKEN?.trim() || undefined,
     manualStorage: parseManualStorage(environment.MANUAL_STORAGE),
-    configuredOrigins: environment.PUBLIC_ORIGIN,
+    publicOrigin,
+    appOrigin,
+    configuredOrigins: [environment.PUBLIC_ORIGIN, appOrigin].filter(Boolean).join(",") || undefined,
   };
 }

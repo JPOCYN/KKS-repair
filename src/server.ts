@@ -11,6 +11,7 @@ import { hasLibraryAccess } from "./access.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createManualStorageHandler } from "./manual-storage.js";
 import { isAllowedWriteOrigin } from "./origin.js";
+import { isApplicationPath, isAppHostname, isPublicContentPath, isPublicHostname, splitSiteRedirect } from "./site-routing.js";
 import {
   createAppRepository,
   type CodeInput,
@@ -41,11 +42,18 @@ const app = express();
 const config = loadAppConfig();
 const repository = await createAppRepository();
 const publicSiteOrigin = (() => {
-  const configured = config.configuredOrigins?.split(",")[0]?.trim();
+  const configured = config.publicOrigin;
   try {
     return new URL(configured || "http://localhost:3000").origin;
   } catch {
     return "http://localhost:3000";
+  }
+})();
+const appSiteOrigin = (() => {
+  try {
+    return new URL(config.appOrigin || publicSiteOrigin).origin;
+  } catch {
+    return publicSiteOrigin;
   }
 })();
 if (config.production) app.set("trust proxy", 1);
@@ -80,6 +88,25 @@ app.use((req, res, next) => {
       res.redirect(301, new URL(req.originalUrl, publicSiteOrigin).toString());
       return;
     }
+  }
+  next();
+});
+app.use((req, res, next) => {
+  const destination = splitSiteRedirect({
+    hostname: req.hostname,
+    method: req.method,
+    originalUrl: req.originalUrl,
+    publicOrigin: publicSiteOrigin,
+    appOrigin: appSiteOrigin,
+  });
+  if (destination) {
+    res.redirect(302, destination);
+    return;
+  }
+  if ((isPublicHostname(req.hostname, publicSiteOrigin, appSiteOrigin) && isApplicationPath(req.path))
+    || (isAppHostname(req.hostname, appSiteOrigin, publicSiteOrigin) && isPublicContentPath(req.path))) {
+    res.status(404).send("Not found");
+    return;
   }
   next();
 });
@@ -241,7 +268,11 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-app.get("/robots.txt", (_req, res) => {
+app.get("/robots.txt", (req, res) => {
+  if (isAppHostname(req.hostname, appSiteOrigin, publicSiteOrigin)) {
+    res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+    return;
+  }
   res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vehicles\nDisallow: /manuals\nDisallow: /modern-manuals\nDisallow: /login\nDisallow: /register\nSitemap: ${publicSiteOrigin}/sitemap.xml\n`);
 });
 
@@ -322,7 +353,11 @@ app.post("/logout", requireUser, requireCsrf, async (req: AuthenticatedRequest, 
 });
 
 app.get("/", (req: AuthenticatedRequest, res) => {
-  res.send(landingView(req.sessionUser, publicSiteOrigin));
+  if (isAppHostname(req.hostname, appSiteOrigin, publicSiteOrigin)) {
+    res.redirect(req.sessionUser ? (req.sessionUser.role === "admin" ? "/admin" : hasLibraryAccess(req.sessionUser) ? "/vehicles" : "/access") : "/login");
+    return;
+  }
+  res.send(landingView(req.sessionUser, publicSiteOrigin, appSiteOrigin));
 });
 
 app.get("/access", requireUser, (req: AuthenticatedRequest, res) => {
@@ -380,6 +415,7 @@ const memberSchema = z.object({
   vipStatus: z.string().optional(),
 });
 const memberExtensionSchema = z.object({ days: z.coerce.number().int().min(1).max(3650) });
+const vehicleVisibilitySchema = z.object({ visible: z.enum(["0", "1"]) });
 const codeSchema = z.object({
   code: z.string().trim().max(100).regex(/^$|^[A-Za-z0-9_-]+$/),
   durationHours: z.coerce.number().int().min(1).max(87600),
@@ -462,6 +498,28 @@ app.post("/admin/vehicles/:id", requireAdmin, requireCsrf, async (req: Authentic
   const parsed = vehicleSchema.safeParse(req.body);
   if (!Number.isInteger(id) || !parsed.success) return res.status(400).send(adminVehicleFormView(req.sessionUser!, await brands(), vehicleDraft(req.body, id), "Check the vehicle fields and manual folder name."));
   if (!await repository.updateVehicle(id, vehicleInput(parsed.data))) return res.status(404).send("Not found");
+  res.redirect("/admin/vehicles?saved=1");
+});
+
+app.post("/admin/vehicles/:id/visibility", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  const id = Number(req.params.id);
+  const parsed = vehicleVisibilitySchema.safeParse(req.body);
+  if (!Number.isInteger(id) || !parsed.success) return res.status(400).send("Invalid visibility request");
+  const car = await repository.getVehicle(id);
+  if (!car) return res.status(404).send("Not found");
+  const updated = await repository.updateVehicle(id, {
+    brandId: Number(car.brand_id),
+    code: String(car.code),
+    name: String(car.name),
+    imagePath: car.image_path ? String(car.image_path) : null,
+    synopsis: car.synopsis ? String(car.synopsis) : null,
+    isShow: parsed.data.visible === "1",
+    folderName: String(car.folder_name),
+    manualId: car.manual_id === null || car.manual_id === undefined || car.manual_id === "" ? null : Number(car.manual_id),
+    menuType: car.menu_type ? String(car.menu_type) : null,
+    sort: Number(car.sort || 0),
+  });
+  if (!updated) return res.status(404).send("Not found");
   res.redirect("/admin/vehicles?saved=1");
 });
 
