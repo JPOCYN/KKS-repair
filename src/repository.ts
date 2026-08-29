@@ -47,7 +47,7 @@ export interface DashboardData {
 }
 
 export interface AppRepository {
-  readonly backend: "sqlite" | "supabase";
+  readonly backend: "sqlite" | "mysql" | "supabase";
   checkRecoveredDatabase(): Promise<void>;
   health(): Promise<void>;
   close(): Promise<void>;
@@ -78,9 +78,13 @@ export interface AppRepository {
 export async function createAppRepository(environment: NodeJS.ProcessEnv = process.env): Promise<AppRepository> {
   const backend = (environment.DATA_BACKEND || "sqlite").trim().toLowerCase();
   if (backend === "sqlite") return new SqliteRepository(environment);
+  if (backend === "mysql") {
+    const { MySqlRepository } = await import("./mysql-repository.js");
+    return MySqlRepository.create(environment);
+  }
   if (backend === "supabase") {
     const { SupabaseRepository } = await import("./supabase-repository.js");
     return SupabaseRepository.create(environment);
   }
-  throw new Error("DATA_BACKEND must be sqlite or supabase");
+  throw new Error("DATA_BACKEND must be sqlite, mysql, or supabase");
 }

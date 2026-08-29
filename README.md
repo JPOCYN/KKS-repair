@@ -42,24 +42,35 @@ The configured administrator is created automatically on first startup. Keep the
 
 The application currently supports two independent switches:
 
-- `DATA_BACKEND=sqlite|supabase`
+- `DATA_BACKEND=sqlite|mysql|supabase`
 - `MANUAL_STORAGE=local|supabase`
 
 Both default to the recovered local implementation. This makes rollback a configuration change instead of a data restore. Use the temporary Hostinger hostname for side-by-side testing and do not change the production domain until the replacement passes the checks below.
 
+### Hostinger MySQL migration
+
+Hostinger managed Node.js deployments keep build output outside `public_html`, so SQLite files bundled with a release are not a reliable long-term store across future redeployments. The `mysql` backend keeps customer accounts, sessions, authorization codes, vehicles, and admin edits in the hosting plan's managed MySQL service while the large manuals remain in the existing protected bundle store.
+
+1. Create a dedicated Hostinger MySQL database and set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` as server-only environment variables.
+2. Keep the recovered SQLite file in the first migration deployment and set `MYSQL_MIGRATION_PATH=data/kks-repair.db`.
+3. Set `DATA_BACKEND=mysql` only after the new database is empty. At startup, the application creates its schema and imports brands, vehicles, members, authorization codes, and manual-menu rows in one transaction. It refuses to import into a non-empty unmarked database.
+4. Verify `/health` reports `backend: mysql`, then test customer/admin login and an admin write before treating the migration as complete.
+5. Keep the SQLite and Hostinger database backups for rollback. After the migration marker exists, future starts skip the import automatically.
+
+Database credentials must remain in Hostinger environment settings and must never be placed in Git, a deployment archive, browser code, or logs.
+
 ### Recommended Hostinger-first model
 
-For the current workload, keep `DATA_BACKEND=sqlite` and `MANUAL_STORAGE=local`. The structured database is about 1.8 MB and the 6.99 GB handbook archive is served from private bundle parts, so the existing Hostinger Business plan is simpler and more reliable than adding a free external database that can pause for inactivity.
+For the current workload, use `DATA_BACKEND=mysql` and keep `MANUAL_STORAGE=local`. The structured data remains in the hosting plan's managed MySQL service, while the 6.99 GB handbook archive continues to use the existing protected bundle parts. This avoids an external paid storage service and ensures admin changes survive Node.js redeployments.
 
 Keep these persistent files outside the deployed source release and deny direct web access to their directory:
 
 ```text
-private-data/recovered/kks-repair.db
 private-data/manuals.bundle.000 (and the remaining numbered parts)
 private-data/manuals-index.json
 ```
 
-The application exposes handbook entries only through the authenticated `/manuals/*` route. A deployment must never package these private files or commit them to Git. After every deployment, verify their exact sizes and test both an authenticated manual request and an unauthenticated rejection.
+Keep the SQLite recovery database as an offline rollback artifact rather than the active production database. The application exposes handbook entries only through the authenticated `/manuals/*` route. A deployment must never package the manual files or commit private data to Git. After every deployment, verify their exact sizes and test both an authenticated manual request and an unauthenticated rejection.
 
 Hostinger managed Node.js builds run outside `public_html` and cannot directly mount its large persistent files. On that platform, set `MANUAL_REMOTE_BASE_URL` to the protected `private-data` URL and `MANUAL_REMOTE_TOKEN` to a long random server-only value. The `private-data/.htaccess` rule must require the matching `X-KKS-Storage-Key` header and set `Cache-Control: private, no-store`. The Node.js adapter then range-proxies only authenticated handbook requests; ordinary requests to `private-data` remain forbidden.
 

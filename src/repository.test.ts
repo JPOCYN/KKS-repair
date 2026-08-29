@@ -50,5 +50,5 @@ test("SQLite remains the default repository and persists application sessions", 
 });
 
 test("unknown data backends fail closed", async () => {
-  await assert.rejects(() => createAppRepository({ DATA_BACKEND: "unknown" }), /sqlite or supabase/);
+  await assert.rejects(() => createAppRepository({ DATA_BACKEND: "unknown" }), /sqlite, mysql, or supabase/);
 });
