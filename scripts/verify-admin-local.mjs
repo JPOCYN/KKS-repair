@@ -79,7 +79,7 @@ try {
   const landingHtml = await landing.text();
   assert(landing.status === 200, "Landing page failed");
   assert(landingHtml.includes("FAQPage") && landingHtml.includes("Independent content notice"), "Landing SEO or disclaimer is missing");
-  assert(landingHtml.includes("Supercar Docs | Supercar Repair Manuals &amp; Workshop Library"), "Brand-first page title is missing");
+  assert(landingHtml.includes("Supercar Repair Manuals for Workshops | Supercar Docs"), "Search-focused page title is missing");
   const authHtml = await (await request("/login")).text();
   assert(authHtml.includes('action="/login"') && authHtml.includes('action="/register"'), "Combined sign-in and registration page is missing");
   assert((await request("/robots.txt")).status === 200, "robots.txt failed");

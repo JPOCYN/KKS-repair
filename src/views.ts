@@ -5,10 +5,12 @@ interface PageOptions {
   canonicalUrl?: string;
   description?: string;
   indexable?: boolean;
+  socialImageUrl?: string;
+  socialImageAlt?: string;
   structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
-const assetVersion = "20260829-auth-tabs";
+const assetVersion = "20260829-saas-landing";
 const policyDate = "29 August 2026";
 
 export function escapeHtml(value: unknown): string {
@@ -26,12 +28,15 @@ function page(title: string, content: string, user?: SessionUser | null, options
   const memberLabel = memberDestination === "/access" ? "Access status" : "Vehicle library";
   const navigation = user
     ? `<nav aria-label="Primary navigation"><a href="/">Home</a><a href="${memberDestination}">${memberLabel}</a>${user.role === "admin" ? '<a href="/admin">Administration</a>' : ""}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Sign out</button></form></nav>`
-    : `<nav aria-label="Primary navigation"><a href="/#about">About</a><a href="/#coverage">Coverage</a><a href="/#faq">FAQ</a><a class="header-cta" href="/login">Member sign in</a></nav>`;
+    : `<nav aria-label="Primary navigation"><a href="/#how-it-works">How it works</a><a href="/#coverage">Coverage</a><a href="/#faq">FAQ</a><a class="header-cta" href="/login">Member sign in</a></nav>`;
   const description = options.description || "Supercar Docs is an independent, protected supercar repair manual and workshop information library.";
   const robots = options.indexable ? "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" : "noindex,nofollow";
   const canonical = options.canonicalUrl ? `<link rel="canonical" href="${escapeHtml(options.canonicalUrl)}">` : "";
+  const socialImage = options.socialImageUrl
+    ? `<meta property="og:image" content="${escapeHtml(options.socialImageUrl)}"><meta property="og:image:width" content="1672"><meta property="og:image:height" content="941"><meta property="og:image:alt" content="${escapeHtml(options.socialImageAlt || "Supercar Docs workshop manual platform")}"><meta name="twitter:image" content="${escapeHtml(options.socialImageUrl)}"><meta name="twitter:image:alt" content="${escapeHtml(options.socialImageAlt || "Supercar Docs workshop manual platform")}">`
+    : "";
   const social = options.indexable
-    ? `<meta property="og:type" content="website"><meta property="og:site_name" content="Supercar Docs"><meta property="og:locale" content="en_US"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(options.canonicalUrl || "")}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}">`
+    ? `<meta property="og:type" content="website"><meta property="og:site_name" content="Supercar Docs"><meta property="og:locale" content="en_US"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(options.canonicalUrl || "")}">${socialImage}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}">`
     : "";
   const structuredData = options.structuredData
     ? `<script type="application/ld+json">${JSON.stringify(options.structuredData).replaceAll("<", "\\u003c")}</script>`
@@ -41,7 +46,9 @@ function page(title: string, content: string, user?: SessionUser | null, options
 
 export function landingView(user: SessionUser | undefined, siteOrigin: string, appOrigin = siteOrigin): string {
   const canonicalUrl = new URL("/", siteOrigin).toString();
-  const description = "Supercar Docs is an independent, protected supercar repair manual library for workshops. Browse McLaren service procedures now, with Ferrari and Lamborghini coverage planned.";
+  const socialImageUrl = new URL("/supercar-workshop-hero.jpg", siteOrigin).toString();
+  const logoUrl = new URL("/favicon.svg", siteOrigin).toString();
+  const description = "Search protected supercar repair manuals, workshop procedures, wiring information, torque references, and technical PDFs. McLaren coverage is available now.";
   const repairPreviews = [
     {
       title: "How to approach McLaren front brake service information",
@@ -62,73 +69,143 @@ export function landingView(user: SessionUser | undefined, siteOrigin: string, a
       detail: "Supercar Docs connects repair procedures with their protected torque-setting references so technicians can verify context rather than relying on an isolated number from a search result.",
     },
   ];
-  const structuredData = [
+  const faqItems = [
     {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      name: "Supercar Docs",
-      alternateName: "Supercar Docs Repair Manual Library",
-      url: canonicalUrl,
-      description,
-      keywords: "supercar repair manuals, workshop manuals, McLaren repair manuals, Ferrari repair manuals, Lamborghini repair manuals",
-      inLanguage: "en",
-      audience: { "@type": "Audience", audienceType: "Independent automotive workshops and repair professionals" },
+      question: "What is Supercar Docs?",
+      answer: "Supercar Docs is an independent, English-language workshop platform for finding protected supercar repair manuals, service procedures, system descriptions, wiring information, and technical PDFs.",
     },
     {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: [
-        {
-          "@type": "Question",
-          name: "What is Supercar Docs?",
-          acceptedAnswer: { "@type": "Answer", text: "Supercar Docs is an independent, English-language library that helps workshop professionals navigate recovered supercar repair and service information collected from publicly available online sources." },
-        },
-        {
-          "@type": "Question",
-          name: "Is Supercar Docs affiliated with McLaren, Ferrari, Lamborghini, or other manufacturers?",
-          acceptedAnswer: { "@type": "Answer", text: "No. Supercar Docs is independent and does not represent, endorse, or claim affiliation with any vehicle manufacturer or brand." },
-        },
-        {
-          "@type": "Question",
-          name: "Will more vehicle brands be added?",
-          acceptedAnswer: { "@type": "Answer", text: "McLaren repair information is available now. Ferrari and Lamborghini catalogues are planned but are not yet available." },
-        },
-      ],
+      question: "Which supercar repair manuals are available?",
+      answer: "The verified library currently covers McLaren vehicles. Ferrari and Lamborghini catalogues are planned, but they will not be marked available until their documents are verified and loaded.",
     },
     {
-      "@context": "https://schema.org",
-      "@type": "CollectionPage",
-      name: "Supercar Docs supercar repair manual library",
-      url: canonicalUrl,
-      description,
-      inLanguage: "en",
-      about: [
-        { "@type": "Brand", name: "McLaren" },
-        { "@type": "Brand", name: "Ferrari" },
-        { "@type": "Brand", name: "Lamborghini" },
-      ],
+      question: "Who is the platform designed for?",
+      answer: "Supercar Docs is designed for independent automotive workshops, technicians, diagnosticians, and repair professionals who need a faster way to navigate model-specific service information.",
     },
     {
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      name: "Supercar repair information previews",
-      itemListElement: repairPreviews.map((preview, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        item: { "@type": "TechArticle", headline: preview.title, description: preview.summary, inLanguage: "en" },
-      })),
+      question: "Is Supercar Docs an official manufacturer website?",
+      answer: "No. Supercar Docs is independent and is not affiliated with, endorsed by, or representative of McLaren, Ferrari, Lamborghini, or any other vehicle manufacturer.",
+    },
+    {
+      question: "Why does the repair library require an account?",
+      answer: "Account access protects the recovered document library, including manual pages, diagrams, and PDFs, while allowing administrators to control each member's access period.",
     },
   ];
+  const organizationId = `${canonicalUrl}#organization`;
+  const websiteId = `${canonicalUrl}#website`;
+  const serviceId = `${canonicalUrl}#service`;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": organizationId,
+        name: "Supercar Docs",
+        url: canonicalUrl,
+        logo: { "@type": "ImageObject", url: logoUrl },
+        image: socialImageUrl,
+        description: "Independent supercar repair manual and workshop information platform.",
+      },
+      {
+        "@type": "WebSite",
+        "@id": websiteId,
+        name: "Supercar Docs",
+        alternateName: "Supercar Docs Repair Manual Library",
+        url: canonicalUrl,
+        description,
+        inLanguage: "en",
+        publisher: { "@id": organizationId },
+      },
+      {
+        "@type": "Service",
+        "@id": serviceId,
+        name: "Supercar repair manual library",
+        serviceType: "Protected online workshop manual and service information library",
+        url: canonicalUrl,
+        description,
+        provider: { "@id": organizationId },
+        audience: { "@type": "Audience", audienceType: "Independent automotive workshops and repair professionals" },
+        areaServed: "Worldwide",
+      },
+      {
+        "@type": ["WebPage", "CollectionPage"],
+        "@id": canonicalUrl,
+        url: canonicalUrl,
+        name: "Supercar repair manuals for independent workshops",
+        description,
+        inLanguage: "en",
+        isPartOf: { "@id": websiteId },
+        about: { "@id": serviceId },
+        primaryImageOfPage: { "@type": "ImageObject", url: socialImageUrl },
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${canonicalUrl}#faq`,
+        url: `${canonicalUrl}#faq`,
+        inLanguage: "en",
+        mainEntity: faqItems.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer },
+        })),
+      },
+    ],
+  };
   const destinationPath = user ? (user.role === "admin" ? "/admin" : hasLibraryAccess(user) ? "/vehicles" : "/access") : "/login";
   const destination = new URL(destinationPath, appOrigin).toString();
   const registrationUrl = new URL("/login#register", appOrigin).toString();
-  const action = user ? "Open your workspace" : "Access the repair library";
-  const previewCards = repairPreviews.map((preview) => `<article class="repair-preview"><span class="section-label">${escapeHtml(preview.category)}</span><h3>${escapeHtml(preview.title)}</h3><p>${escapeHtml(preview.summary)}</p><div class="repair-preview__fade"><p>${escapeHtml(preview.detail)}</p></div><small>Original index preview—not a copied manufacturer procedure.</small><a href="${destination}">${user ? "Open the protected library" : "Sign in for the full library"} <span aria-hidden="true">→</span></a></article>`).join("");
+  const action = user ? "Open your workspace" : "Explore member access";
+  const previewCards = repairPreviews.map((preview, index) => `
+    <article class="repair-preview">
+      <div class="repair-preview__top"><span class="repair-preview__number">0${index + 1}</span><span class="section-label">${escapeHtml(preview.category)}</span></div>
+      <h3>${escapeHtml(preview.title)}</h3>
+      <p>${escapeHtml(preview.summary)}</p>
+      <div class="repair-preview__fade"><p>${escapeHtml(preview.detail)}</p></div>
+      <small>Original topic summary—not a copied manufacturer procedure.</small>
+      <a href="${destination}">${user ? "Open the protected library" : "Sign in for the full library"} <span aria-hidden="true">→</span></a>
+    </article>`).join("");
+  const faqMarkup = faqItems.map((item, index) => `<details${index === 0 ? " open" : ""}><summary>${escapeHtml(item.question)}</summary><p>${escapeHtml(item.answer)}</p></details>`).join("");
   return page(
-    "Supercar Docs | Supercar Repair Manuals & Workshop Library",
-    `<section class="landing-hero"><div class="landing-hero__copy"><span class="section-label">Independent supercar workshop intelligence</span><h1>The supercar repair manual library for independent workshops.</h1><p class="landing-lead">Supercar Docs gives automotive professionals private, English-language access to recovered service procedures, system descriptions, wiring documentation, and technical PDFs in one modern workspace.</p><div class="landing-actions"><a class="primary button" href="${destination}">${action}</a><a class="secondary button" href="#coverage">Explore coverage</a></div><div class="landing-proof"><span><strong>107,000+</strong> indexed documents and assets</span><span><strong>McLaren</strong> manuals available now</span><span><strong>Private</strong> member access</span></div></div><div class="landing-visual" aria-label="Independent supercar workshop and Supercar Docs document workflow"><img class="landing-visual__image" src="/supercar-workshop-hero.jpg" alt="Fictional unbranded supercar in a professional independent workshop" width="1672" height="941" fetchpriority="high"><div class="signal-card signal-card--large"><span class="section-label">Workshop search</span><strong>Vehicle → System → Procedure</strong><p>Move from a vehicle catalogue to the exact service document without digging through disconnected folders.</p><div class="signal-lines"><i></i><i></i><i></i><i></i></div></div><div class="signal-card signal-card--small"><span>Platform status</span><strong>McLaren library online</strong><i class="status-dot"></i></div></div></section><section class="brand-strip" aria-label="Platform direction"><span>Built for independent repair professionals</span><strong>McLaren available now</strong><span>Ferrari and Lamborghini planned</span></section><section class="coverage-brands" aria-label="Supercar Docs brand coverage"><div class="coverage-brand coverage-brand--available"><span class="coverage-brand__name">McLaren</span><small>Manuals available</small></div><div class="coverage-brand"><span class="coverage-brand__name">Ferrari</span><small>Catalogue planned</small></div><div class="coverage-brand"><span class="coverage-brand__name">Lamborghini</span><small>Catalogue planned</small></div><p>Independent coverage labels only. Supercar Docs is not affiliated with or endorsed by these manufacturers.</p></section><section id="about" class="landing-section landing-section--split"><div><span class="section-label">One reliable workspace</span><h2>Designed around workshop speed, not software complexity.</h2></div><div class="feature-grid"><article><span>01</span><h3>Find the vehicle</h3><p>Search a clean visual catalogue by supercar model or vehicle code.</p></article><article><span>02</span><h3>Navigate the manual</h3><p>Browse an English-only document tree with fast in-page search.</p></article><article><span>03</span><h3>Open the procedure</h3><p>Load recovered HTML, diagrams, technical images, and protected PDFs inside the same workspace.</p></article></div></section><section id="coverage" class="coverage-panel"><div><span class="section-label">Supercar manual coverage</span><h2>McLaren today. A multi-brand platform for tomorrow.</h2><p>Supercar Docs currently provides recovered McLaren repair procedures, system descriptions, wiring information, and technical PDFs. Ferrari and Lamborghini catalogues are planned additions; they will be listed as available only after their documents are verified and loaded.</p></div><ul><li><strong>McLaren repair manuals</strong><span>Available now for the recovered vehicle catalogue</span></li><li><strong>Ferrari manuals</strong><span>Planned future catalogue</span></li><li><strong>Lamborghini manuals</strong><span>Planned future catalogue</span></li><li><strong>Protected access</strong><span>Manual pages and PDFs require a member account with current library access</span></li></ul></section><section class="repair-preview-section" aria-labelledby="repair-preview-heading"><div class="repair-preview-heading"><span class="section-label">Searchable repair topics</span><h2 id="repair-preview-heading">Preview the questions the library helps workshops answer.</h2><p>These original summaries make the catalogue discoverable without publishing protected manufacturer pages, specifications, or procedures.</p></div><div class="repair-preview-grid">${previewCards}</div></section><section id="faq" class="faq-section"><div><span class="section-label">Clear answers</span><h2>About Supercar Docs</h2></div><div class="faq-list"><details open><summary>What is Supercar Docs?</summary><p>An independent, English-language library that helps workshop professionals navigate recovered supercar service information collected from publicly available online sources.</p></details><details><summary>Which repair manuals are available now?</summary><p>The current verified catalogue covers McLaren vehicles. Ferrari and Lamborghini catalogues are planned but are not yet available.</p></details><details><summary>Is this an official manufacturer website?</summary><p>No. Supercar Docs is independent and is not affiliated with, endorsed by, or representative of McLaren, Ferrari, Lamborghini, or any other vehicle manufacturer or brand.</p></details><details><summary>Why is an account required?</summary><p>Member access protects the document library, including manual pages and technical PDFs, and lets administrators separately control account sign-in and library validity.</p></details></div></section><section class="landing-cta"><div><span class="section-label">Ready for the next repair</span><h2>Open the supercar workshop library.</h2><p>Sign in with your Supercar Docs member account or activate access with an authorization code.</p></div><div class="landing-actions"><a class="primary button" href="${destination}">${action}</a>${user ? "" : `<a class="secondary button" href="${registrationUrl}">Activate a code</a>`}</div></section>`,
+    "Supercar Repair Manuals for Workshops | Supercar Docs",
+    `<section class="landing-hero">
+      <div class="landing-hero__copy">
+        <span class="hero-pill"><i aria-hidden="true"></i> McLaren workshop library available now</span>
+        <h1>Supercar repair manuals, organized for real workshop work.</h1>
+        <p class="landing-lead">Search protected McLaren repair procedures, system descriptions, wiring information, torque references, diagrams, and technical PDFs from one focused workspace.</p>
+        <div class="landing-actions"><a class="primary button" href="${destination}">${action} <span aria-hidden="true">→</span></a><a class="secondary button" href="#how-it-works">See how it works</a></div>
+        <div class="landing-proof" aria-label="Platform facts"><span><strong>107,000+</strong> indexed files and documents</span><span><strong>21</strong> McLaren vehicle entries</span><span><strong>Private</strong> authenticated access</span></div>
+      </div>
+      <div class="landing-product" aria-label="Preview of the Supercar Docs workshop application">
+        <img class="landing-product__image" src="/supercar-workshop-hero.jpg" alt="Fictional unbranded supercar in a professional independent workshop" width="1672" height="941" fetchpriority="high">
+        <div class="product-window">
+          <div class="product-window__top"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><strong>Supercar Docs</strong><span class="product-lock">Protected library</span></div>
+          <div class="product-window__body" aria-hidden="true">
+            <aside><span class="product-search">Search vehicles</span><strong>McLaren</strong><i class="is-active">750S</i><i>Senna</i><i>720S</i><i>Artura</i></aside>
+            <section><span class="product-breadcrumb">750S / Repair instructions</span><h2>Service information</h2><p>Select a system, locate the procedure, and open the supporting technical documents.</p><div class="product-tabs"><i>Instructions</i><i>Torque</i><i>Wiring</i></div><div class="product-lines"><i></i><i></i><i></i><i></i></div></section>
+          </div>
+        </div>
+        <div class="product-float"><i class="status-dot"></i><span>Library status</span><strong>Online and protected</strong></div>
+      </div>
+    </section>
+    <section class="brand-strip" aria-label="Current and planned supercar manual coverage"><span>Supercar service information platform</span><div><strong>McLaren</strong><small>Available now</small></div><div><strong>Ferrari</strong><small>Planned</small></div><div><strong>Lamborghini</strong><small>Planned</small></div></section>
+    <section id="how-it-works" class="landing-section landing-section--center">
+      <div class="landing-section__heading"><span class="section-label">Built for workshop speed</span><h2>From vehicle to procedure in three clear steps.</h2><p>Supercar Docs replaces disconnected folders and slow legacy navigation with a simple, searchable path to the service information you need.</p></div>
+      <div class="feature-grid">
+        <article><span>01</span><div class="feature-icon" aria-hidden="true">⌕</div><h3>Find the exact vehicle</h3><p>Search the catalogue by model or vehicle code and open the matching workshop library.</p></article>
+        <article><span>02</span><div class="feature-icon" aria-hidden="true">≡</div><h3>Navigate service systems</h3><p>Browse an English-only document tree covering repair instructions, systems, and wiring information.</p></article>
+        <article><span>03</span><div class="feature-icon" aria-hidden="true">↗</div><h3>Open the complete source</h3><p>View recovered HTML, technical images, diagrams, and protected PDF attachments in one reader.</p></article>
+      </div>
+    </section>
+    <section id="coverage" class="coverage-panel">
+      <div class="coverage-panel__copy"><span class="section-label">Verified coverage</span><h2>McLaren repair information today. Multi-brand architecture for tomorrow.</h2><p>The current library covers verified McLaren service material. Ferrari and Lamborghini are planned additions, but Supercar Docs will only label a catalogue available after its documents and navigation have been checked.</p><div class="coverage-stat"><strong>107K+</strong><span>recovered and indexed files across the protected manual store</span></div></div>
+      <div class="coverage-list" role="list"><article class="is-live" role="listitem"><div><strong>McLaren repair manuals</strong><span>Repair, system, wiring, torque, diagrams, and PDFs</span></div><small>Available</small></article><article role="listitem"><div><strong>Ferrari workshop manuals</strong><span>Future verified catalogue</span></div><small>Planned</small></article><article role="listitem"><div><strong>Lamborghini workshop manuals</strong><span>Future verified catalogue</span></div><small>Planned</small></article><article role="listitem"><div><strong>Protected member access</strong><span>Manual pages and PDFs stay outside the public site</span></div><small>Active</small></article></div>
+    </section>
+    <section class="trust-panel" aria-labelledby="trust-heading"><div><span class="section-label">Independent and transparent</span><h2 id="trust-heading">Useful workshop access without pretending to be a manufacturer.</h2></div><div class="trust-grid"><article><strong>Independent platform</strong><p>Supercar Docs is not affiliated with or endorsed by any vehicle manufacturer.</p></article><article><strong>Protected source library</strong><p>Original manual files and technical PDFs require an active member account.</p></article><article><strong>Clear coverage status</strong><p>Brands are marked available only when their recovered catalogue is actually ready.</p></article></div></section>
+    <section class="repair-preview-section" aria-labelledby="repair-preview-heading"><div class="repair-preview-heading"><span class="section-label">Helpful public previews</span><h2 id="repair-preview-heading">Common McLaren workshop questions, explained clearly.</h2><p>These original summaries help technicians understand the library's coverage while keeping manufacturer procedures, specifications, and documents inside the protected member application.</p></div><div class="repair-preview-grid">${previewCards}</div></section>
+    <section id="faq" class="faq-section"><div><span class="section-label">Supercar Docs explained</span><h2>Questions workshop professionals ask before joining.</h2><p>Short, direct answers about coverage, access, and independence.</p></div><div class="faq-list">${faqMarkup}</div></section>
+    <section class="landing-cta"><div><span class="section-label">Your next procedure, without the folder hunt</span><h2>Open the protected workshop library.</h2><p>Sign in with an existing Supercar Docs account or activate access with an unused authorization code.</p></div><div class="landing-actions"><a class="primary button" href="${destination}">${action} <span aria-hidden="true">→</span></a>${user ? "" : `<a class="secondary button" href="${registrationUrl}">Create an account</a>`}</div></section>`,
     user,
-    { canonicalUrl, description, indexable: true, structuredData },
+    { canonicalUrl, description, indexable: true, socialImageUrl, socialImageAlt: "Fictional supercar in a professional independent workshop", structuredData },
   );
 }
 

@@ -7,7 +7,7 @@ import helmet from "helmet";
 import { z } from "zod";
 import { loadAppConfig } from "./config.js";
 import type { SessionUser } from "./db.js";
-import { hasLibraryAccess } from "./access.js";
+import { hasLibraryAccess, type LibraryAccessUser } from "./access.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createManualStorageHandler } from "./manual-storage.js";
 import { isAllowedWriteOrigin } from "./origin.js";
@@ -116,12 +116,27 @@ app.use(express.static(config.publicDirectory, { maxAge: config.production ? "7d
 
 type AuthenticatedRequest = Request & { sessionUser?: SessionUser; sessionToken?: string };
 
+function destinationFor(user: LibraryAccessUser): string {
+  if (user.role === "admin") return "/admin";
+  return hasLibraryAccess(user) ? "/vehicles" : "/access";
+}
+
+function sessionCookie(token: string, maxAge = 43200): string {
+  const cookie = [`kks_session=${encodeURIComponent(token)}`, "HttpOnly", "SameSite=Lax", "Path=/", `Max-Age=${maxAge}`];
+  if (config.production) cookie.push("Secure");
+  return cookie.join("; ");
+}
+
 function parseCookies(header: string | undefined): Record<string, string> {
   const result: Record<string, string> = {};
   for (const item of (header || "").split(";")) {
     const separator = item.indexOf("=");
     if (separator < 0) continue;
-    result[item.slice(0, separator).trim()] = decodeURIComponent(item.slice(separator + 1).trim());
+    try {
+      result[item.slice(0, separator).trim()] = decodeURIComponent(item.slice(separator + 1).trim());
+    } catch {
+      // Ignore one malformed cookie instead of failing the entire request.
+    }
   }
   return result;
 }
@@ -281,12 +296,12 @@ app.get("/sitemap.xml", (_req, res) => {
 });
 
 app.get("/login", (req: AuthenticatedRequest, res) => {
-  if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : hasLibraryAccess(req.sessionUser) ? "/vehicles" : "/access");
+  if (req.sessionUser) return res.redirect(destinationFor(req.sessionUser));
   res.send(loginView());
 });
 
 app.get("/register", (req: AuthenticatedRequest, res) => {
-  if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : hasLibraryAccess(req.sessionUser) ? "/vehicles" : "/access");
+  if (req.sessionUser) return res.redirect(destinationFor(req.sessionUser));
   res.send(registerView());
 });
 
@@ -323,9 +338,7 @@ app.post("/register", loginLimiter, async (req: AuthenticatedRequest, res) => {
     });
     if (!userId) return res.status(400).send(registerView("That authorization code is invalid, disabled, or already used.", req.body));
     const session = await repository.createSession(userId);
-    const cookie = [`kks_session=${encodeURIComponent(session.token)}`, "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=43200"];
-    if (config.production) cookie.push("Secure");
-    res.setHeader("Set-Cookie", cookie.join("; "));
+    res.setHeader("Set-Cookie", sessionCookie(session.token));
     res.redirect("/vehicles");
   } catch {
     res.status(409).send(registerView("That email address is already registered.", req.body));
@@ -340,21 +353,19 @@ app.post("/login", loginLimiter, async (req: AuthenticatedRequest, res) => {
     return res.status(401).send(loginView("Email or password is incorrect."));
   }
   const session = await repository.createSession(user.id);
-  const cookie = [`kks_session=${encodeURIComponent(session.token)}`, "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=43200"];
-  if (config.production) cookie.push("Secure");
-  res.setHeader("Set-Cookie", cookie.join("; "));
-  res.redirect(user.role === "admin" ? "/admin" : hasLibraryAccess(user) ? "/vehicles" : "/access");
+  res.setHeader("Set-Cookie", sessionCookie(session.token));
+  res.redirect(destinationFor(user));
 });
 
 app.post("/logout", requireUser, requireCsrf, async (req: AuthenticatedRequest, res) => {
   await repository.deleteSession(req.sessionToken);
-  res.setHeader("Set-Cookie", "kks_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+  res.setHeader("Set-Cookie", sessionCookie("", 0));
   res.redirect("/login");
 });
 
 app.get("/", (req: AuthenticatedRequest, res) => {
   if (isAppHostname(req.hostname, appSiteOrigin, publicSiteOrigin)) {
-    res.redirect(req.sessionUser ? (req.sessionUser.role === "admin" ? "/admin" : hasLibraryAccess(req.sessionUser) ? "/vehicles" : "/access") : "/login");
+    res.redirect(req.sessionUser ? destinationFor(req.sessionUser) : "/login");
     return;
   }
   res.send(landingView(req.sessionUser, publicSiteOrigin, appSiteOrigin));
