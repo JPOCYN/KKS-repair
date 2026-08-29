@@ -28,7 +28,7 @@ export class SqliteRepository implements AppRepository {
   constructor(environment: NodeJS.ProcessEnv = process.env) {
     this.environment = environment;
     this.database = initializeDatabase(environment);
-    const persistentDirectory = findPersistentPrivateDirectory();
+    const persistentDirectory = findPersistentPrivateDirectory(process.cwd(), environment.PUBLIC_ORIGIN);
     const persistentRecoveredDatabase = persistentDirectory && path.join(persistentDirectory, "recovered", "kks-repair.db");
     this.recoveredDatabaseFile = persistentRecoveredDatabase && existsSync(persistentRecoveredDatabase)
       ? persistentRecoveredDatabase

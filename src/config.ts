@@ -47,7 +47,7 @@ export function loadAppConfig(
     const dataSibling = configuredDataDirectory
       ? (path.basename(configuredDataDirectory).toLowerCase() === "recovered" ? path.dirname(configuredDataDirectory) : configuredDataDirectory)
       : null;
-    const persistentDirectory = findPersistentPrivateDirectory(workingDirectory) || dataSibling;
+    const persistentDirectory = findPersistentPrivateDirectory(workingDirectory, environment.PUBLIC_ORIGIN) || dataSibling;
     const persistentIndex = persistentDirectory && path.join(persistentDirectory, path.basename(requestedManualIndex));
     if (persistentIndex && existsSync(persistentIndex)) {
       manualIndexFile = persistentIndex;

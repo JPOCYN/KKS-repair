@@ -69,7 +69,7 @@ function readJson<T>(file: string): T {
 
 export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env): AppDatabase {
   const configuredDataDirectory = path.resolve(environment.DATA_DIR || "data");
-  const persistentDirectory = findPersistentPrivateDirectory();
+  const persistentDirectory = findPersistentPrivateDirectory(process.cwd(), environment.PUBLIC_ORIGIN);
   const persistentDatabaseDirectory = persistentDirectory && path.join(persistentDirectory, "recovered");
   const dataDirectory = persistentDatabaseDirectory && existsSync(path.join(persistentDatabaseDirectory, "kks-repair.db"))
     ? persistentDatabaseDirectory
