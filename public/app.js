@@ -1,4 +1,37 @@
 const vehicleSearch = document.querySelector("[data-vehicle-search]");
+
+const authPortal = document.querySelector("[data-auth-portal]");
+if (authPortal instanceof HTMLElement) {
+  const tabs = [...authPortal.querySelectorAll("[data-auth-tab]")];
+  const panels = [...authPortal.querySelectorAll('[role="tabpanel"]')];
+
+  const selectAuthTab = (name, updateHash = false) => {
+    if (name !== "signin" && name !== "register") return;
+    for (const tab of tabs) {
+      const active = tab.getAttribute("data-auth-tab") === name;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", String(active));
+      tab.setAttribute("tabindex", active ? "0" : "-1");
+    }
+    for (const panel of panels) panel.toggleAttribute("hidden", panel.id !== name);
+    if (updateHash) history.replaceState(null, "", name === "register" ? "#register" : "#signin");
+  };
+
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => selectAuthTab(tab.getAttribute("data-auth-tab") || "signin", true));
+    tab.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const nextTab = event.key === "ArrowRight" ? (tab.nextElementSibling || tabs[0]) : (tab.previousElementSibling || tabs[tabs.length - 1]);
+      if (!(nextTab instanceof HTMLElement)) return;
+      selectAuthTab(nextTab.getAttribute("data-auth-tab") || "signin", true);
+      nextTab.focus();
+    });
+  }
+  const initialTab = location.hash === "#register" ? "register" : authPortal.getAttribute("data-default-auth-tab") || "signin";
+  selectAuthTab(initialTab);
+}
+
 const vehicleCards = [...document.querySelectorAll("[data-vehicle-card]")];
 if (vehicleCards.length) {
   const resultCount = document.querySelector("[data-result-count]");

@@ -99,6 +99,10 @@ test("registration and public policy pages provide launch-ready privacy and take
   const terms = termsView("https://supercardocs.com");
   const contact = contactView("https://supercardocs.com");
   assert.match(registration, /name="acceptPolicies"/);
+  assert.match(registration, /role="tablist"/);
+  assert.match(registration, /data-auth-tab="signin">Sign in/);
+  assert.match(registration, /data-auth-tab="register">Sign up/);
+  assert.match(registration, /id="register"[^>]* hidden/);
   assert.match(registration, /action="\/login"/);
   assert.match(registration, /action="\/register"/);
   assert.match(registration, /Personal Information Collection Statement/);
@@ -109,6 +113,14 @@ test("registration and public policy pages provide launch-ready privacy and take
   assert.match(contact, /name="requestType"/);
   assert.match(contact, /Copyright or takedown/);
   assert.match(contact, /name="website"/);
+});
+
+test("a registration error opens the sign-up tab without showing sign-in", () => {
+  const registration = registerView("That authorization code is invalid.", { email: "member@example.com" });
+  assert.match(registration, /data-default-auth-tab="register"/);
+  assert.match(registration, /aria-selected="true" class="is-active" data-auth-tab="register"/);
+  assert.doesNotMatch(registration, /id="register"[^>]* hidden/);
+  assert.match(registration, /id="signin"[^>]* hidden/);
 });
 
 test("expired members keep an account status page while the library remains unavailable", () => {
