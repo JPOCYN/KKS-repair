@@ -153,6 +153,26 @@ export function initializeDatabase(): AppDatabase {
   return db;
 }
 
+export function adoptRecoveredDatabase(db: AppDatabase, sourceFile: string): "missing" | "current" | "adopted" {
+  if (!existsSync(sourceFile)) return "missing";
+  const recovered = new SqlJsDatabase(sourceFile);
+  let recoveredMembers: number;
+  let recoveredCodes: number;
+  try {
+    recoveredMembers = Number((recovered.prepare("SELECT COUNT(*) AS value FROM users WHERE role='customer'").get() as { value: number }).value);
+    recoveredCodes = Number((recovered.prepare("SELECT COUNT(*) AS value FROM authorization_codes").get() as { value: number }).value);
+  } finally {
+    recovered.close();
+  }
+  const currentMembers = Number((db.prepare("SELECT COUNT(*) AS value FROM users WHERE role='customer'").get() as { value: number }).value);
+  const currentCodes = Number((db.prepare("SELECT COUNT(*) AS value FROM authorization_codes").get() as { value: number }).value);
+  if (currentMembers >= recoveredMembers && currentCodes >= recoveredCodes) return "current";
+  if (recoveredMembers < 1 || recoveredCodes < 1) throw new Error("Recovered database failed validation");
+  db.replaceWithFile(sourceFile);
+  ensureConfiguredAdmin(db);
+  return "adopted";
+}
+
 function seedManualMenus(db: AppDatabase): void {
   const menuFile = path.resolve("recovery", "catalog", "manual-menus.json");
   if (!existsSync(menuFile)) return;

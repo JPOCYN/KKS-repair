@@ -37,3 +37,24 @@ test("portable database persists transactions and supports named parameters", ()
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("portable database can adopt an external database", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "kks-sqlite-replace-"));
+  try {
+    const primaryFile = path.join(directory, "primary.db");
+    const sourceFile = path.join(directory, "source.db");
+    const primary = new SqlJsDatabase(primaryFile);
+    primary.exec("CREATE TABLE records (value TEXT NOT NULL); INSERT INTO records VALUES ('old')");
+    const source = new SqlJsDatabase(sourceFile);
+    source.exec("CREATE TABLE records (value TEXT NOT NULL); INSERT INTO records VALUES ('recovered')");
+    source.close();
+    primary.replaceWithFile(sourceFile);
+    assert.equal(primary.prepare("SELECT value FROM records").get()?.value, "recovered");
+    primary.close();
+    const reopened = new SqlJsDatabase(primaryFile);
+    assert.equal(reopened.prepare("SELECT value FROM records").get()?.value, "recovered");
+    reopened.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

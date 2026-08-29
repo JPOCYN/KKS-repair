@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { z } from "zod";
 import {
+  adoptRecoveredDatabase,
   createSession,
   deleteSession,
   getSessionUser,
@@ -29,6 +30,8 @@ import {
 
 const app = express();
 const db = initializeDatabase();
+const recoveredDatabaseFile = process.env.RECOVERY_DB_PATH;
+let recoveredDatabaseChecked = !recoveredDatabaseFile;
 const configuredPort = process.env.PORT;
 const port = configuredPort && /^\d+$/.test(configuredPort) ? Number(configuredPort) : configuredPort || 3000;
 const production = process.env.NODE_ENV === "production";
@@ -59,6 +62,20 @@ function sessionMiddleware(req: AuthenticatedRequest, _res: Response, next: Next
   next();
 }
 
+function recoveredDatabaseMiddleware(_req: Request, _res: Response, next: NextFunction): void {
+  if (recoveredDatabaseChecked || !recoveredDatabaseFile) return next();
+  try {
+    const result = adoptRecoveredDatabase(db, recoveredDatabaseFile);
+    if (result !== "missing") {
+      recoveredDatabaseChecked = true;
+      console.log(`Recovered database status: ${result}`);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
 function requireUser(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   if (!req.sessionUser) {
     res.redirect("/login");
@@ -87,6 +104,7 @@ function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunctio
   next();
 }
 
+app.use(recoveredDatabaseMiddleware);
 app.use(sessionMiddleware);
 const manualsDirectory = path.resolve(process.env.MANUALS_DIR || "manuals");
 const manualBundleFile = path.resolve(process.env.MANUAL_BUNDLE_PATH || "private-data/manuals.bundle");

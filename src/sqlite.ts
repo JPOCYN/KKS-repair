@@ -76,7 +76,7 @@ export class SqlJsStatement {
 }
 
 export class SqlJsDatabase {
-  readonly raw: InstanceType<typeof SQL.Database>;
+  raw: InstanceType<typeof SQL.Database>;
   readonly name: string;
   private transactionDepth = 0;
   private dirty = false;
@@ -140,6 +140,24 @@ export class SqlJsDatabase {
     if (this.dirty) this.persist();
     this.raw.close();
     this.closed = true;
+  }
+
+  replaceWithFile(sourceFile: string): void {
+    this.assertOpen();
+    const replacement = new SQL.Database(readFileSync(sourceFile));
+    replacement.run("PRAGMA foreign_keys = ON");
+    const previous = this.raw;
+    this.raw = replacement;
+    this.dirty = true;
+    try {
+      this.persist();
+      previous.close();
+    } catch (error) {
+      this.raw.close();
+      this.raw = previous;
+      this.dirty = false;
+      throw error;
+    }
   }
 
   private persist(): void {
