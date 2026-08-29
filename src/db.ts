@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { hashPassword } from "./password.js";
+import { findPersistentPrivateDirectory } from "./persistent-storage.js";
 import { SqlJsDatabase } from "./sqlite.js";
 
 export type AppDatabase = SqlJsDatabase;
@@ -67,7 +68,12 @@ function readJson<T>(file: string): T {
 }
 
 export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env): AppDatabase {
-  const dataDirectory = path.resolve(environment.DATA_DIR || "data");
+  const configuredDataDirectory = path.resolve(environment.DATA_DIR || "data");
+  const persistentDirectory = findPersistentPrivateDirectory();
+  const persistentDatabaseDirectory = persistentDirectory && path.join(persistentDirectory, "recovered");
+  const dataDirectory = persistentDatabaseDirectory && existsSync(path.join(persistentDatabaseDirectory, "kks-repair.db"))
+    ? persistentDatabaseDirectory
+    : configuredDataDirectory;
   mkdirSync(dataDirectory, { recursive: true });
   const db = new SqlJsDatabase(path.join(dataDirectory, "kks-repair.db"));
   db.pragma("journal_mode = WAL");

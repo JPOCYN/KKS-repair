@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { findPersistentPrivateDirectory } from "./persistent-storage.js";
 
 export type ManualStorage = "local" | "supabase";
 
@@ -37,15 +38,18 @@ export function loadAppConfig(
   // Hostinger runs Node.js builds outside public_html while persistent files stay
   // beside the recovered database. Use that known data location when a relative
   // manual path points into the ephemeral build directory.
-  if (!existsSync(requestedManualIndex) && environment.DATA_DIR) {
-    const dataDirectory = path.resolve(workingDirectory, environment.DATA_DIR);
-    const persistentDirectory = path.basename(dataDirectory).toLowerCase() === "recovered"
-      ? path.dirname(dataDirectory)
-      : dataDirectory;
-    const persistentIndex = path.join(persistentDirectory, path.basename(requestedManualIndex));
-    if (existsSync(persistentIndex)) {
+  if (!existsSync(requestedManualIndex)) {
+    const configuredDataDirectory = environment.DATA_DIR
+      ? path.resolve(workingDirectory, environment.DATA_DIR)
+      : null;
+    const dataSibling = configuredDataDirectory
+      ? (path.basename(configuredDataDirectory).toLowerCase() === "recovered" ? path.dirname(configuredDataDirectory) : configuredDataDirectory)
+      : null;
+    const persistentDirectory = findPersistentPrivateDirectory(workingDirectory) || dataSibling;
+    const persistentIndex = persistentDirectory && path.join(persistentDirectory, path.basename(requestedManualIndex));
+    if (persistentIndex && existsSync(persistentIndex)) {
       manualIndexFile = persistentIndex;
-      manualBundleFile = path.join(persistentDirectory, path.basename(requestedManualBundle));
+      manualBundleFile = path.join(path.dirname(persistentIndex), path.basename(requestedManualBundle));
     }
   }
 

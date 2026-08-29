@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import {
   adoptRecoveredDatabase,
   createSession,
@@ -14,6 +16,7 @@ import type {
   MemberInput,
   VehicleInput,
 } from "./repository.js";
+import { findPersistentPrivateDirectory } from "./persistent-storage.js";
 
 export class SqliteRepository implements AppRepository {
   readonly backend = "sqlite" as const;
@@ -25,7 +28,11 @@ export class SqliteRepository implements AppRepository {
   constructor(environment: NodeJS.ProcessEnv = process.env) {
     this.environment = environment;
     this.database = initializeDatabase(environment);
-    this.recoveredDatabaseFile = environment.RECOVERY_DB_PATH;
+    const persistentDirectory = findPersistentPrivateDirectory();
+    const persistentRecoveredDatabase = persistentDirectory && path.join(persistentDirectory, "recovered", "kks-repair.db");
+    this.recoveredDatabaseFile = persistentRecoveredDatabase && existsSync(persistentRecoveredDatabase)
+      ? persistentRecoveredDatabase
+      : environment.RECOVERY_DB_PATH;
     this.recoveredDatabaseChecked = !this.recoveredDatabaseFile;
   }
 
