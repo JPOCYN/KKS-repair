@@ -14,6 +14,7 @@ import {
 } from "./db.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createManualBundleHandler } from "./manual-bundle.js";
+import { isAllowedWriteOrigin } from "./origin.js";
 import {
   adminCodeFormView,
   adminCodesView,
@@ -118,9 +119,13 @@ app.use(
 );
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
-  const expectedOrigin = process.env.PUBLIC_ORIGIN;
-  const suppliedOrigin = req.get("origin");
-  if (production && expectedOrigin && suppliedOrigin && suppliedOrigin !== expectedOrigin) {
+  if (!isAllowedWriteOrigin({
+    production,
+    configuredOrigins: process.env.PUBLIC_ORIGIN,
+    requestOrigin: req.get("origin"),
+    fetchSite: req.get("sec-fetch-site"),
+    requestReferer: req.get("referer"),
+  })) {
     res.status(403).send("Origin not allowed");
     return;
   }
