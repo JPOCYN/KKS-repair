@@ -40,16 +40,62 @@ The configured administrator is created automatically on first startup. Keep the
 
 ## Server deployment
 
-The recommended deployment is Docker Compose with Caddy:
+The application currently supports two independent switches:
+
+- `DATA_BACKEND=sqlite|supabase`
+- `MANUAL_STORAGE=local|supabase`
+
+Both default to the recovered local implementation. This makes rollback a configuration change instead of a data restore. Use the temporary Hostinger hostname for side-by-side testing and do not change the production domain until the replacement passes the checks below.
+
+For a conventional Linux server deployment:
 
 1. Copy this project to the new Linux server.
 2. Create `.env` from `.env.example`.
-3. Set `DOMAIN`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `PUBLIC_ORIGIN`.
-4. Run `docker compose up -d --build`.
+3. Set `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `PUBLIC_ORIGIN`.
+4. Build and run the included Dockerfile or deploy the Node.js source to Hostinger.
 5. Verify the application using the server IP or a temporary hostname.
 6. Only after verification, change the domain's DNS A/AAAA records to the new server.
 
-Caddy obtains and renews HTTPS certificates automatically. Back up `data/kks-repair.db`, `data/kks-repair.db-wal` (when present), and the `manuals` directory together.
+In local mode, back up `data/kks-repair.db` and the `manuals` directory together.
+
+## Supabase side-by-side migration
+
+The Supabase design keeps the existing server-rendered application and its custom scrypt passwords. Only the trusted Node.js server connects to Supabase. Browser roles have no table privileges, all public tables have RLS enabled, and manuals are stored in a private bucket and streamed through the authenticated application route.
+
+The recovered manual corpus is 6,993,888,685 bytes (about 6.99 GB decimal). Supabase's Free organization quota is currently 1 GB of Storage, so the full manual migration requires a paid organization with enough Storage capacity. See [Supabase Storage size usage](https://supabase.com/docs/guides/platform/manage-your-usage/storage-size). If the organization remains Free, keep `MANUAL_STORAGE=local`; do not start a partial Storage cutover.
+
+1. Create a dedicated Supabase project in the intended organization and region.
+2. Apply `supabase/migrations/20260829043156_create_kks_schema.sql`.
+3. Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_EXPECTED_PROJECT_REF` locally. The expected ref is a write-safety pin and must match the URL.
+4. Validate the database import without writing:
+
+   ```text
+   npm run migrate:supabase
+   ```
+
+5. Import and verify every structured row:
+
+   ```text
+   npm run migrate:supabase -- --apply
+   ```
+
+6. Inventory the manual corpus, then upload it. Completed objects are journaled so the command can be resumed safely. Files above 6 MB use Supabase's resumable TUS endpoint.
+
+   ```text
+   npm run upload:supabase-manuals
+   npm run upload:supabase-manuals -- --apply
+   ```
+
+7. Independently compare every remote object path and size, then download and SHA-256-check deterministic samples including the largest file:
+
+   ```text
+   npm run verify:supabase-manuals
+   ```
+
+8. On the temporary deployment only, set `DATA_BACKEND=supabase` and `MANUAL_STORAGE=supabase`. Test customer/admin login, registration-code redemption, vehicle/manual browsing, admin edits, logout, and restart persistence.
+9. To roll back, restore `DATA_BACKEND=sqlite` and `MANUAL_STORAGE=local`; the local database and manual files remain untouched during side-by-side testing.
+
+Never place `SUPABASE_SECRET_KEY` in public JavaScript, HTML, logs, screenshots, or Git. It bypasses RLS and belongs only in server environment settings.
 
 ## Manual recovery and resuming downloads
 

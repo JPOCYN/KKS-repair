@@ -17,4 +17,4 @@ COPY recovery/catalog ./recovery/catalog
 RUN mkdir -p /app/data /app/manuals && chown -R node:node /app
 USER node
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/start.js"]

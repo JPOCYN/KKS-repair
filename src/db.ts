@@ -66,8 +66,8 @@ function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(file, "utf8")) as T;
 }
 
-export function initializeDatabase(): AppDatabase {
-  const dataDirectory = path.resolve(process.env.DATA_DIR || "data");
+export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env): AppDatabase {
+  const dataDirectory = path.resolve(environment.DATA_DIR || "data");
   mkdirSync(dataDirectory, { recursive: true });
   const db = new SqlJsDatabase(path.join(dataDirectory, "kks-repair.db"));
   db.pragma("journal_mode = WAL");
@@ -149,11 +149,15 @@ export function initializeDatabase(): AppDatabase {
 
   seedCatalog(db);
   seedManualMenus(db);
-  ensureConfiguredAdmin(db);
+  ensureConfiguredAdmin(db, environment);
   return db;
 }
 
-export function adoptRecoveredDatabase(db: AppDatabase, sourceFile: string): "missing" | "current" | "adopted" {
+export function adoptRecoveredDatabase(
+  db: AppDatabase,
+  sourceFile: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): "missing" | "current" | "adopted" {
   if (!existsSync(sourceFile)) return "missing";
   const recovered = new SqlJsDatabase(sourceFile);
   let recoveredMembers: number;
@@ -169,7 +173,7 @@ export function adoptRecoveredDatabase(db: AppDatabase, sourceFile: string): "mi
   if (currentMembers >= recoveredMembers && currentCodes >= recoveredCodes) return "current";
   if (recoveredMembers < 1 || recoveredCodes < 1) throw new Error("Recovered database failed validation");
   db.replaceWithFile(sourceFile);
-  ensureConfiguredAdmin(db);
+  ensureConfiguredAdmin(db, environment);
   return "adopted";
 }
 
@@ -221,9 +225,9 @@ function seedCatalog(db: AppDatabase): void {
   })();
 }
 
-function ensureConfiguredAdmin(db: AppDatabase): void {
-  const email = process.env.ADMIN_EMAIL?.trim();
-  const password = process.env.ADMIN_PASSWORD;
+function ensureConfiguredAdmin(db: AppDatabase, environment: NodeJS.ProcessEnv = process.env): void {
+  const email = environment.ADMIN_EMAIL?.trim();
+  const password = environment.ADMIN_PASSWORD;
   if (!email || !password) return;
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
   if (existing) return;

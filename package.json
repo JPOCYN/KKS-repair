@@ -12,6 +12,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/start.js",
     "import:recovery": "tsx src/import-recovery.ts",
+    "migrate:supabase": "tsx src/migrate-supabase.ts",
+    "upload:supabase-manuals": "tsx src/upload-supabase-manuals.ts",
+    "verify:supabase-manuals": "tsx src/verify-supabase-manuals.ts",
     "recover:manual-html": "node scripts/recover-manual-html.mjs --concurrency=16",
     "recover:manual-assets": "node scripts/recover-manual-assets.mjs --concurrency=20 --max-gb=24",
     "build:manual-bundle": "node scripts/build-manual-bundle.mjs",
@@ -19,6 +22,7 @@
     "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.112.4",
     "express": "5.2.1",
     "express-rate-limit": "8.6.2",
     "helmet": "8.3.0",
@@ -27,8 +31,12 @@
   },
   "devDependencies": {
     "@types/express": "5.0.6",
+    "@types/mime-types": "3.0.1",
     "@types/sql.js": "^1.4.11",
+    "mime-types": "3.0.2",
+    "supabase": "2.116.0",
     "tsx": "4.23.12",
+    "tus-js-client": "4.3.1",
     "typescript": "7.0.2"
   }
 }
