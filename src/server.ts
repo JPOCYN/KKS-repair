@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
@@ -126,10 +128,38 @@ const registerSchema = z.object({
   password: z.string().min(10).max(200),
 });
 
+function manualHealth(): Record<string, unknown> {
+  if (config.manualStorage !== "local") return { storage: config.manualStorage, ready: true };
+  if (!existsSync(config.manualIndexFile)) return { storage: "local", ready: false, reason: "index-missing" };
+  try {
+    const index = JSON.parse(readFileSync(config.manualIndexFile, "utf8")) as {
+      version?: number;
+      parts?: Array<{ file: string; length: number }>;
+      files?: Record<string, unknown>;
+    };
+    const parts = index.version === 2 && Array.isArray(index.parts) ? index.parts : [];
+    const validParts = parts.filter((part) => {
+      if (!/^[A-Za-z0-9._-]+$/.test(part.file) || !Number.isSafeInteger(part.length)) return false;
+      const file = path.join(path.dirname(config.manualIndexFile), part.file);
+      return existsSync(file) && statSync(file).size === part.length;
+    }).length;
+    return {
+      storage: "local",
+      ready: index.version === 1 ? existsSync(config.manualBundleFile) : parts.length > 0 && validParts === parts.length,
+      version: index.version,
+      indexedFiles: index.files ? Object.keys(index.files).length : 0,
+      parts: parts.length,
+      validParts,
+    };
+  } catch {
+    return { storage: "local", ready: false, reason: "index-invalid" };
+  }
+}
+
 app.get("/health", async (_req, res) => {
   try {
     await repository.health();
-    res.json({ status: "ok", database: "connected", backend: repository.backend });
+    res.json({ status: "ok", database: "connected", backend: repository.backend, manuals: manualHealth() });
   } catch {
     res.status(503).json({ status: "error", database: "unavailable", backend: repository.backend });
   }
