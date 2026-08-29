@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { lookup as mimeTypeForPath } from "mime-types";
 import { Upload } from "tus-js-client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeManualPath } from "./manual-bundle.js";
 import {
   createSupabaseServerClient,
@@ -147,15 +148,18 @@ async function uploadLargeManual(
   bucket: string,
   contentType: string,
   projectRef: string,
-  secretKey: string,
+  client: SupabaseClient,
 ): Promise<void> {
+  const { data: signedUpload, error } = await client.storage.from(bucket).createSignedUploadUrl(file.objectPath, {
+    upsert: true,
+  });
+  if (error) throw new Error(`Cannot create signed resumable upload: ${error.message}`);
   await new Promise<void>((resolve, reject) => {
     const upload = new Upload(createReadStream(file.absolutePath), {
       endpoint: `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`,
       retryDelays: [0, 3_000, 5_000, 10_000, 20_000],
       headers: {
-        apikey: secretKey,
-        authorization: `Bearer ${secretKey}`,
+        "x-signature": signedUpload.token,
         "x-upsert": "true",
       },
       chunkSize: resumableChunkSize,
@@ -242,7 +246,7 @@ async function uploadManuals(options: UploadOptions): Promise<void> {
       const contentType = mimeTypeForPath(file.objectPath) || "application/octet-stream";
       if (file.size > resumableUploadThreshold) {
         try {
-          await uploadLargeManual(file, options.bucket, contentType, projectRef, config.secretKey);
+          await uploadLargeManual(file, options.bucket, contentType, projectRef, client);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           throw new Error(`Resumable upload failed: ${file.objectPath}: ${message}`);

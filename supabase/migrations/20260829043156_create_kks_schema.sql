@@ -174,6 +174,7 @@ revoke all on table public.authorization_codes from anon, authenticated;
 revoke all on table public.manual_menu from anon, authenticated;
 revoke all on table public.app_sessions from anon, authenticated;
 
+grant usage on schema public to service_role;
 grant select, insert, update, delete on table public.brands to service_role;
 grant select, insert, update, delete on table public.cars to service_role;
 grant select, insert, update, delete on table public.app_users to service_role;
