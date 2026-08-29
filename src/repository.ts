@@ -68,6 +68,7 @@ export interface AppRepository {
   getMember(id: number): Promise<DataRecord | null>;
   createMember(input: MemberInput & { passwordHash: string }): Promise<void>;
   updateMember(id: number, input: MemberInput): Promise<boolean>;
+  extendMemberVip(id: number, days: number): Promise<string | null>;
   listCodes(): Promise<DataRecord[]>;
   getCode(id: number): Promise<DataRecord | null>;
   createCode(input: CodeInput): Promise<void>;

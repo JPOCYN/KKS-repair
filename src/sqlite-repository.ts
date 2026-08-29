@@ -159,6 +159,23 @@ export class SqliteRepository implements AppRepository {
     return result.changes > 0;
   }
 
+  async extendMemberVip(id: number, days: number): Promise<string | null> {
+    if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error("Invalid VIP extension");
+    return this.database.transaction(() => {
+      const member = this.database.prepare("SELECT vip_expires_at FROM users WHERE id=? AND role='customer'")
+        .get(id) as { vip_expires_at: string | null } | undefined;
+      if (!member) return null;
+      const currentExpiry = member.vip_expires_at ? new Date(member.vip_expires_at) : null;
+      const base = currentExpiry && Number.isFinite(currentExpiry.valueOf()) && currentExpiry > new Date()
+        ? currentExpiry
+        : new Date();
+      const expiresAt = new Date(base.valueOf() + days * 24 * 60 * 60 * 1000).toISOString();
+      this.database.prepare("UPDATE users SET vip_status=1, vip_expires_at=? WHERE id=? AND role='customer'")
+        .run(expiresAt, id);
+      return expiresAt;
+    })();
+  }
+
   async listCodes(): Promise<DataRecord[]> {
     return this.database.prepare("SELECT id,code,duration_hours,is_used,status FROM authorization_codes ORDER BY id DESC").all() as DataRecord[];
   }

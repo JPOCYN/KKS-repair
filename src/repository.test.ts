@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { verifyPassword } from "./password.js";
+import { hashPassword, verifyPassword } from "./password.js";
 import { createAppRepository } from "./repository.js";
 
 test("SQLite remains the default repository and persists application sessions", async () => {
@@ -26,6 +26,23 @@ test("SQLite remains the default repository and persists application sessions", 
     assert.equal(sessionUser?.email, "owner@example.com");
     await repository.deleteSession(session.token);
     assert.equal(await repository.getSessionUser(session.token), null);
+    await repository.createMember({
+      email: "customer@example.com",
+      name: "Customer",
+      contactAddress: null,
+      passwordHash: hashPassword("customer-test-password"),
+      status: true,
+      vipStatus: false,
+      vipExpiresAt: null,
+    });
+    const member = (await repository.listMembers()).find((item) => item.email === "customer@example.com");
+    assert.ok(member);
+    const extended = await repository.extendMemberVip(Number(member.id), 30);
+    assert.ok(extended);
+    assert.ok(new Date(extended).valueOf() > Date.now() + 29 * 24 * 60 * 60 * 1000);
+    const updatedMember = await repository.getMember(Number(member.id));
+    assert.equal(updatedMember?.vip_status, 1);
+    assert.equal(updatedMember?.vip_expires_at, extended);
   } finally {
     await repository.close();
     rmSync(temporary, { recursive: true, force: true });

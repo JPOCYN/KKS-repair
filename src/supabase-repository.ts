@@ -328,6 +328,23 @@ export class SupabaseRepository implements AppRepository {
     return Boolean(data);
   }
 
+  async extendMemberVip(id: number, days: number): Promise<string | null> {
+    if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error("Invalid VIP extension");
+    const member = await this.getMember(id);
+    if (!member) return null;
+    const currentExpiry = member.vip_expires_at ? new Date(String(member.vip_expires_at)) : null;
+    const base = currentExpiry && Number.isFinite(currentExpiry.valueOf()) && currentExpiry > new Date()
+      ? currentExpiry
+      : new Date();
+    const expiresAt = new Date(base.valueOf() + days * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await this.client.from("app_users").update({
+      vip_status: true,
+      vip_expires_at: expiresAt,
+    }).eq("id", id).eq("role", "customer").select("id").maybeSingle();
+    assertNoError(error, "Cannot extend member VIP access");
+    return data ? expiresAt : null;
+  }
+
   async listCodes(): Promise<DataRecord[]> {
     const rows = await collectPages((from, to) => this.client.from("authorization_codes")
       .select("id,code,duration_hours,is_used,status")

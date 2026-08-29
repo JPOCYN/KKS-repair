@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SessionUser } from "./db.js";
-import { englishOnlyManualMenu, vehicleDetailView, vehicleListView } from "./views.js";
+import {
+  adminMembersView,
+  adminView,
+  englishOnlyManualMenu,
+  landingView,
+  vehicleDetailView,
+  vehicleListView,
+} from "./views.js";
 
 const user: SessionUser = {
   id: 1,
@@ -37,4 +44,36 @@ test("customer pages render a modern English-only interface", () => {
   assert.match(detail, /English service sheet/);
   assert.doesNotMatch(detail, /服務手冊|Hidden descendant/);
   assert.doesNotMatch(`${list}${detail}`, /[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/);
+});
+
+test("public landing page includes SEO, GEO-friendly answers, future coverage, and the site disclaimer", () => {
+  const html = landingView(undefined, "https://example.com");
+  assert.match(html, /<link rel="canonical" href="https:\/\/example\.com\/">/);
+  assert.match(html, /application\/ld\+json/);
+  assert.match(html, /FAQPage/);
+  assert.match(html, /Multi-brand expansion planned/);
+  assert.match(html, /does not own, represent, endorse, or claim affiliation/);
+  assert.match(html, /Member sign in/);
+});
+
+test("admin views expose quick code creation and member expiry actions", () => {
+  const dashboard = adminView(user, {
+    counts: { Vehicles: 1, Brands: 1, Members: 1, "Authorization codes": 1 },
+    cars: [],
+    users: [],
+    codes: [],
+  });
+  const members = adminMembersView(user, [{
+    id: 7,
+    email: "customer@example.com",
+    name: "Customer",
+    status: 1,
+    vip_status: 1,
+    vip_expires_at: "2030-01-01",
+  }]);
+  assert.match(dashboard, /Generate an access code/);
+  assert.match(dashboard, /name="durationHours"/);
+  assert.match(members, /\/admin\/members\/7\/extend/);
+  assert.match(members, /\+1 year/);
+  assert.match(`${dashboard}${members}`, /Independent content notice/);
 });

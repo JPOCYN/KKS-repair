@@ -1,5 +1,12 @@
 import type { SessionUser } from "./db.js";
 
+interface PageOptions {
+  canonicalUrl?: string;
+  description?: string;
+  indexable?: boolean;
+  structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -9,11 +16,66 @@ export function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#039;");
 }
 
-function page(title: string, content: string, user?: SessionUser | null): string {
+function page(title: string, content: string, user?: SessionUser | null, options: PageOptions = {}): string {
+  const documentTitle = title.includes("KKS Repair") ? title : `${title} · KKS Repair`;
   const navigation = user
-    ? `<nav aria-label="Primary navigation"><a href="/vehicles">Vehicle library</a>${user.role === "admin" ? '<a href="/admin">Administration</a>' : ""}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Sign out</button></form></nav>`
+    ? `<nav aria-label="Primary navigation"><a href="/">Home</a><a href="/vehicles">Vehicle library</a>${user.role === "admin" ? '<a href="/admin">Administration</a>' : ""}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Sign out</button></form></nav>`
+    : `<nav aria-label="Primary navigation"><a href="/#about">About</a><a href="/#coverage">Coverage</a><a href="/#faq">FAQ</a><a class="header-cta" href="/login">Member sign in</a></nav>`;
+  const description = options.description || "Independent access to recovered vehicle repair and service information for professional workshops.";
+  const robots = options.indexable ? "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" : "noindex,nofollow";
+  const canonical = options.canonicalUrl ? `<link rel="canonical" href="${escapeHtml(options.canonicalUrl)}">` : "";
+  const social = options.indexable
+    ? `<meta property="og:type" content="website"><meta property="og:site_name" content="KKS Repair"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(options.canonicalUrl || "")}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}">`
     : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><title>${escapeHtml(title)} · KKS Repair</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="KKS Repair home"><span class="brand-mark" aria-hidden="true">K</span><span><strong>KKS</strong><small>Repair library</small></span></a>${navigation}</header><main>${content}</main><footer><span class="footer-brand">KKS Repair</span><span>Independent service information platform.</span></footer></body></html>`;
+  const structuredData = options.structuredData
+    ? `<script type="application/ld+json">${JSON.stringify(options.structuredData).replaceAll("<", "\\u003c")}</script>`
+    : "";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><title>${escapeHtml(documentTitle)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${robots}">${canonical}${social}${structuredData}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="KKS Repair home"><span class="brand-mark" aria-hidden="true">K</span><span><strong>KKS</strong><small>Repair library</small></span></a>${navigation}</header><main>${content}</main><footer><div class="footer-summary"><span class="footer-brand">KKS Repair</span><span>Independent multi-brand service information platform.</span></div><p class="footer-disclaimer"><strong>Independent content notice:</strong> Information on this website is collected from publicly available online sources for reference. KKS Repair does not own, represent, endorse, or claim affiliation with any vehicle manufacturer or brand. All brand names, trademarks, documents, and related rights belong to their respective owners.</p></footer></body></html>`;
+}
+
+export function landingView(user: SessionUser | undefined, siteOrigin: string): string {
+  const canonicalUrl = new URL("/", siteOrigin).toString();
+  const description = "Search an independent, English-language vehicle repair manual library for workshop service procedures, system information, and wiring documentation. Multi-brand coverage is expanding.";
+  const structuredData = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "KKS Repair",
+      url: canonicalUrl,
+      description,
+      inLanguage: "en",
+      audience: { "@type": "Audience", audienceType: "Independent automotive workshops and repair professionals" },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "What is KKS Repair?",
+          acceptedAnswer: { "@type": "Answer", text: "KKS Repair is an independent index that helps workshop professionals navigate recovered vehicle service information collected from publicly available online sources." },
+        },
+        {
+          "@type": "Question",
+          name: "Is KKS Repair affiliated with vehicle manufacturers?",
+          acceptedAnswer: { "@type": "Answer", text: "No. KKS Repair is independent and does not represent, endorse, or claim affiliation with any vehicle manufacturer or brand." },
+        },
+        {
+          "@type": "Question",
+          name: "Will more vehicle brands be added?",
+          acceptedAnswer: { "@type": "Answer", text: "Yes. The platform is designed for multi-brand expansion, with additional recovered catalogues planned for future releases." },
+        },
+      ],
+    },
+  ];
+  const destination = user ? (user.role === "admin" ? "/admin" : "/vehicles") : "/login";
+  const action = user ? "Open your workspace" : "Access the repair library";
+  return page(
+    "Independent Multi-Brand Vehicle Repair Manual Library | KKS Repair",
+    `<section class="landing-hero"><div class="landing-hero__copy"><span class="section-label">Independent workshop intelligence</span><h1>Repair information, organised for the work ahead.</h1><p class="landing-lead">A fast, private way for automotive professionals to search recovered service procedures, system descriptions, and wiring documentation from one modern workspace.</p><div class="landing-actions"><a class="primary button" href="${destination}">${action}</a><a class="secondary button" href="#coverage">Explore coverage</a></div><div class="landing-proof"><span><strong>105,000+</strong> indexed documents and assets</span><span><strong>English</strong> customer interface</span><span><strong>Private</strong> member access</span></div></div><div class="landing-visual" aria-label="KKS Repair document workflow"><div class="signal-card signal-card--large"><span class="section-label">Workshop search</span><strong>Vehicle → System → Procedure</strong><p>Move from a vehicle catalogue to the exact service document without digging through disconnected folders.</p><div class="signal-lines"><i></i><i></i><i></i><i></i></div></div><div class="signal-card signal-card--small"><span>Platform status</span><strong>Manual library online</strong><i class="status-dot"></i></div></div></section><section class="brand-strip" aria-label="Platform direction"><span>Built for independent repair professionals</span><strong>Current recovered catalogue: McLaren</strong><span>Multi-brand expansion planned</span></section><section id="about" class="landing-section landing-section--split"><div><span class="section-label">One reliable workspace</span><h2>Designed around workshop speed, not software complexity.</h2></div><div class="feature-grid"><article><span>01</span><h3>Find the vehicle</h3><p>Search a clean visual catalogue by model or vehicle code.</p></article><article><span>02</span><h3>Navigate the manual</h3><p>Browse an English-only document tree with fast in-page search.</p></article><article><span>03</span><h3>Open the procedure</h3><p>Load recovered HTML, diagrams, and technical images inside the same workspace.</p></article></div></section><section id="coverage" class="coverage-panel"><div><span class="section-label">Coverage that can grow</span><h2>A multi-brand foundation.</h2><p>The current library focuses on recovered McLaren service information. The platform architecture separates vehicles, members, authorization codes, and manual storage so additional brands and catalogues can be introduced without replacing the customer experience.</p></div><ul><li><strong>Repair procedures</strong><span>Step-by-step technical information</span></li><li><strong>System descriptions</strong><span>Component and operating references</span></li><li><strong>Wiring information</strong><span>Diagrams and supporting graphics</span></li><li><strong>Future catalogues</strong><span>Additional brands can use the same workflow</span></li></ul></section><section id="faq" class="faq-section"><div><span class="section-label">Clear answers</span><h2>About the library</h2></div><div class="faq-list"><details open><summary>What is KKS Repair?</summary><p>An independent index that helps workshop professionals navigate recovered service information collected from publicly available online sources.</p></details><details><summary>Is this an official manufacturer website?</summary><p>No. KKS Repair is independent and is not affiliated with, endorsed by, or representative of any vehicle manufacturer or brand.</p></details><details><summary>Will more brands be available?</summary><p>Yes. Multi-brand support is part of the platform direction, and additional recovered catalogues can be added over time.</p></details><details><summary>Why is an account required?</summary><p>Member access protects the document library and lets administrators control account and authorization-code validity.</p></details></div></section><section class="landing-cta"><div><span class="section-label">Ready for the next repair</span><h2>Open the workshop library.</h2><p>Sign in with your KKS Repair member account or activate access with an authorization code.</p></div><div class="landing-actions"><a class="primary button" href="${destination}">${action}</a>${user ? "" : '<a class="secondary button" href="/register">Activate a code</a>'}</div></section>`,
+    user,
+    { canonicalUrl, description, indexable: true, structuredData },
+  );
 }
 
 export function loginView(error = ""): string {
@@ -94,8 +156,9 @@ export function adminView(user: SessionUser, data: {
   const carTable = table(["Brand", "Vehicle", "Visible"], data.cars.map((row) => [row.brand_name, row.name, statusLabel(row.is_show)]));
   const userTable = table(["Email", "Name", "Status"], data.users.map((row) => [row.email, row.name, statusLabel(row.status)]));
   const codeTable = table(["Authorization code", "Access hours", "Used", "Status"], data.codes.map((row) => [row.code, row.duration_hours, yesNo(row.is_used), statusLabel(row.status)]));
-  const links = `<section class="admin-actions"><a href="/admin/vehicles"><strong>Vehicles</strong><span>Edit catalogue and visibility</span></a><a href="/admin/members"><strong>Members</strong><span>Create and manage access</span></a><a href="/admin/codes"><strong>Authorization codes</strong><span>Issue and disable codes</span></a></section>`;
-  return page("Administration", `<section class="hero"><div><span class="eyebrow">Independent administration</span><h1>Recovered KKS data</h1><p>The replacement database is running locally and no longer depends on the former vendor.</p></div></section><section class="stats">${stats}</section>${links}<section><h2>Recent vehicles</h2>${carTable}</section><section><h2>Recent members</h2>${userTable}</section><section><h2>Recent authorization codes</h2>${codeTable}</section>`, user);
+  const links = `<section class="admin-actions"><a href="/admin/vehicles"><span class="admin-action-icon" aria-hidden="true">V</span><strong>Vehicles</strong><span>Edit catalogue and visibility</span></a><a href="/admin/members"><span class="admin-action-icon" aria-hidden="true">M</span><strong>Members</strong><span>Create accounts and extend access</span></a><a href="/admin/codes"><span class="admin-action-icon" aria-hidden="true">C</span><strong>Authorization codes</strong><span>Issue, review, and disable codes</span></a></section>`;
+  const quickActions = `<section class="admin-workbench"><div class="admin-section-heading"><div><span class="section-label">Daily operations</span><h2>Quick actions</h2></div><p>Complete common access tasks without navigating through multiple pages.</p></div><div class="quick-action-grid"><form method="post" action="/admin/codes" class="quick-action-card"><span class="quick-action-card__number">01</span><h3>Generate an access code</h3><p>Create an active code with a useful duration preset. The secure code is generated automatically.</p>${csrf(user)}<input type="hidden" name="code" value=""><input type="hidden" name="status" value="1"><label>Access period<select name="durationHours" required><option value="720">30 days</option><option value="2160">90 days</option><option value="4380">6 months</option><option value="8760">1 year</option></select></label><button class="primary" type="submit">Generate code</button></form><article class="quick-action-card"><span class="quick-action-card__number">02</span><h3>Add a customer</h3><p>Create a member account, set its VIP expiry, and choose whether access starts active.</p><a class="secondary button" href="/admin/members/new">Add member</a></article><article class="quick-action-card"><span class="quick-action-card__number">03</span><h3>Add a vehicle</h3><p>Prepare the catalogue for another model or future brand and connect its manual folder.</p><a class="secondary button" href="/admin/vehicles/new">Add vehicle</a></article></div></section>`;
+  return page("Administration", `<section class="admin-hero"><div><span class="eyebrow">KKS control room</span><h1>Administration</h1><p>Manage customer access, authorization codes, vehicle coverage, and the recovered catalogue from one operational dashboard.</p></div><div class="admin-hero__status"><i></i><span>Application online</span><strong>${escapeHtml(user.email)}</strong></div></section><section class="stats">${stats}</section>${quickActions}${links}<section class="admin-data-section"><div class="admin-section-heading"><h2>Recent vehicles</h2><a href="/admin/vehicles">Manage all</a></div>${carTable}</section><section class="admin-data-section"><div class="admin-section-heading"><h2>Recent members</h2><a href="/admin/members">Manage all</a></div>${userTable}</section><section class="admin-data-section"><div class="admin-section-heading"><h2>Recent authorization codes</h2><a href="/admin/codes">Manage all</a></div>${codeTable}</section>`, user);
 }
 
 function statusLabel(value: unknown): string {
@@ -134,9 +197,10 @@ export function adminVehicleFormView(user: SessionUser, brands: Array<Record<str
   return page(editing ? "Edit vehicle" : "Add vehicle", `<a href="/admin/vehicles">← Vehicles</a><section class="form-card"><h1>${editing ? "Edit" : "Add"} vehicle</h1>${message(false, error)}<form method="post" action="${editing ? `/admin/vehicles/${escapeHtml(car.id)}` : "/admin/vehicles"}" class="form-grid">${csrf(user)}<label>Brand<select name="brandId" required>${brandOptions}</select></label><label>Code<input name="code" maxlength="100" value="${escapeHtml(car.code)}" required></label><label class="wide">Vehicle name<input name="name" maxlength="200" value="${escapeHtml(car.name)}" required></label><label class="wide">Image path<input name="imagePath" maxlength="500" value="${escapeHtml(car.image_path)}"></label><label class="wide">Description<textarea name="synopsis" maxlength="5000" rows="6">${escapeHtml(car.synopsis)}</textarea></label><label>Manual folder<input name="folderName" maxlength="200" value="${escapeHtml(car.folder_name)}" required></label><label>Manual type<input name="menuType" maxlength="100" value="${escapeHtml(car.menu_type)}"></label><label>Manual ID<input name="manualId" type="number" value="${escapeHtml(car.manual_id)}"></label><label>Sort order<input name="sort" type="number" value="${escapeHtml(car.sort ?? 0)}" required></label><label class="check"><input name="isShow" type="checkbox" value="1"${checked(car.is_show ?? 1)}> Visible to members</label><div class="wide form-buttons"><button class="primary" type="submit">Save vehicle</button></div></form></section>`, user);
 }
 
-export function adminMembersView(user: SessionUser, members: Array<Record<string, unknown>>, saved = false): string {
-  const rows = members.map((row) => [row.email, row.name, statusLabel(row.status), statusLabel(row.vip_status), dateValue(row.vip_expires_at), `<a href="/admin/members/${escapeHtml(row.id)}/edit">Edit</a>`]);
-  return page("Manage members", `<div class="page-heading"><div><a href="/admin">← Dashboard</a><h1>Members</h1></div><a class="primary button" href="/admin/members/new">Add member</a></div>${message(saved)}${tableHtml(["Email", "Name", "Account", "VIP", "Expiry", ""], rows)}`, user);
+export function adminMembersView(user: SessionUser, members: Array<Record<string, unknown>>, saved = false, extended = false): string {
+  const rows = members.map((row) => [row.email, row.name, statusLabel(row.status), statusLabel(row.vip_status), dateValue(row.vip_expires_at), `<div class="row-actions"><a href="/admin/members/${escapeHtml(row.id)}/edit">Edit</a><form method="post" action="/admin/members/${escapeHtml(row.id)}/extend"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><label class="sr-only" for="extend-${escapeHtml(row.id)}">Extension period</label><select id="extend-${escapeHtml(row.id)}" name="days" aria-label="Extension period"><option value="30">+30 days</option><option value="90">+90 days</option><option value="365">+1 year</option></select><button type="submit">Extend</button></form></div>`]);
+  const notice = extended ? '<div class="success">VIP access extended from the later of today or the current expiry date.</div>' : message(saved);
+  return page("Manage members", `<div class="page-heading"><div><a href="/admin">← Dashboard</a><h1>Members</h1><p>Create accounts, manage access status, and extend VIP dates.</p></div><a class="primary button" href="/admin/members/new">Add member</a></div>${notice}${tableHtml(["Email", "Name", "Account", "VIP", "Expiry", "Actions"], rows)}`, user);
 }
 
 export function adminMemberFormView(user: SessionUser, member: Record<string, unknown> = {}, error = ""): string {
@@ -151,7 +215,7 @@ export function adminCodesView(user: SessionUser, codes: Array<Record<string, un
 
 export function adminCodeFormView(user: SessionUser, code: Record<string, unknown> = {}, error = ""): string {
   const editing = Boolean(code.id);
-  return page(editing ? "Edit authorization code" : "Add authorization code", `<a href="/admin/codes">← Authorization codes</a><section class="form-card"><h1>${editing ? "Edit" : "Add"} authorization code</h1>${message(false, error)}<form method="post" action="${editing ? `/admin/codes/${escapeHtml(code.id)}` : "/admin/codes"}" class="form-grid">${csrf(user)}<label>Code<input name="code" maxlength="100" pattern="[A-Za-z0-9_-]+" value="${escapeHtml(code.code)}" placeholder="Leave blank to generate"></label><label>Access duration (hours)<input name="durationHours" type="number" min="1" step="1" value="${escapeHtml(code.duration_hours ?? 720)}" required></label><label class="check"><input name="status" type="checkbox" value="1"${checked(code.status ?? 1)}> Code active</label>${editing ? `<p class="wide muted">Used: ${yesNo(code.is_used)}</p>` : ""}<div class="wide form-buttons"><button class="primary" type="submit">Save code</button></div></form></section>`, user);
+  return page(editing ? "Edit authorization code" : "Add authorization code", `<a href="/admin/codes">← Authorization codes</a><section class="form-card"><span class="section-label">Customer activation</span><h1>${editing ? "Edit" : "Add"} authorization code</h1><p>${editing ? "Change this code's validity or disable future use." : "Leave the code field blank to generate a secure value automatically."}</p>${message(false, error)}<form method="post" action="${editing ? `/admin/codes/${escapeHtml(code.id)}` : "/admin/codes"}" class="form-grid">${csrf(user)}<label>Code<input name="code" maxlength="100" pattern="[A-Za-z0-9_-]+" value="${escapeHtml(code.code)}" placeholder="Automatically generated"></label><label>Access duration (hours)<input name="durationHours" type="number" min="1" step="1" value="${escapeHtml(code.duration_hours ?? 720)}" required data-duration-input><small>Choose a preset or enter a custom number of hours.</small></label><div class="wide duration-presets" aria-label="Duration presets"><button type="button" data-duration-value="720">30 days</button><button type="button" data-duration-value="2160">90 days</button><button type="button" data-duration-value="4380">6 months</button><button type="button" data-duration-value="8760">1 year</button></div><label class="check"><input name="status" type="checkbox" value="1"${checked(code.status ?? 1)}> Code active</label>${editing ? `<p class="wide muted">Used: ${yesNo(code.is_used)}</p>` : ""}<div class="wide form-buttons"><button class="primary" type="submit">Save authorization code</button></div></form></section>`, user);
 }
 
 function tableHtml(headers: string[], rows: unknown[][]): string {

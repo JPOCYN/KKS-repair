@@ -24,6 +24,7 @@ import {
   adminVehicleFormView,
   adminVehiclesView,
   adminView,
+  landingView,
   loginView,
   registerView,
   vehicleDetailView,
@@ -33,6 +34,14 @@ import {
 const app = express();
 const config = loadAppConfig();
 const repository = await createAppRepository();
+const publicSiteOrigin = (() => {
+  const configured = config.configuredOrigins?.split(",")[0]?.trim();
+  try {
+    return new URL(configured || "http://localhost:3000").origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+})();
 if (config.production) app.set("trust proxy", 1);
 
 app.disable("x-powered-by");
@@ -166,6 +175,14 @@ app.get("/health", async (_req, res) => {
   }
 });
 
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vehicles\nDisallow: /manuals\nDisallow: /login\nDisallow: /register\nSitemap: ${publicSiteOrigin}/sitemap.xml\n`);
+});
+
+app.get("/sitemap.xml", (_req, res) => {
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${publicSiteOrigin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`);
+});
+
 app.get("/login", (req: AuthenticatedRequest, res) => {
   if (req.sessionUser) return res.redirect(req.sessionUser.role === "admin" ? "/admin" : "/vehicles");
   res.send(loginView());
@@ -219,8 +236,7 @@ app.post("/logout", requireUser, requireCsrf, async (req: AuthenticatedRequest, 
 });
 
 app.get("/", (req: AuthenticatedRequest, res) => {
-  if (!req.sessionUser) return res.redirect("/login");
-  res.redirect(req.sessionUser.role === "admin" ? "/admin" : "/vehicles");
+  res.send(landingView(req.sessionUser, publicSiteOrigin));
 });
 
 app.get("/vehicles", requireUser, async (req: AuthenticatedRequest, res) => {
@@ -261,6 +277,7 @@ const memberSchema = z.object({
   status: z.string().optional(),
   vipStatus: z.string().optional(),
 });
+const memberExtensionSchema = z.object({ days: z.coerce.number().int().min(1).max(3650) });
 const codeSchema = z.object({
   code: z.string().trim().max(100).regex(/^$|^[A-Za-z0-9_-]+$/),
   durationHours: z.coerce.number().int().min(1).max(87600),
@@ -342,7 +359,7 @@ app.post("/admin/vehicles/:id", requireAdmin, requireCsrf, async (req: Authentic
 
 app.get("/admin/members", requireAdmin, async (req: AuthenticatedRequest, res) => {
   const members = await repository.listMembers();
-  res.send(adminMembersView(req.sessionUser!, members, req.query.saved === "1"));
+  res.send(adminMembersView(req.sessionUser!, members, req.query.saved === "1", req.query.extended === "1"));
 });
 
 app.get("/admin/members/new", requireAdmin, (req: AuthenticatedRequest, res) => {
@@ -378,6 +395,14 @@ app.post("/admin/members/:id", requireAdmin, requireCsrf, async (req: Authentica
   } catch {
     res.status(409).send(adminMemberFormView(req.sessionUser!, memberDraft(req.body, id), "That email address is already registered."));
   }
+});
+
+app.post("/admin/members/:id/extend", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  const id = Number(req.params.id);
+  const parsed = memberExtensionSchema.safeParse(req.body);
+  if (!Number.isInteger(id) || !parsed.success) return res.status(400).send("Enter a valid extension period.");
+  if (!await repository.extendMemberVip(id, parsed.data.days)) return res.status(404).send("Not found");
+  res.redirect("/admin/members?extended=1");
 });
 
 app.get("/admin/codes", requireAdmin, async (req: AuthenticatedRequest, res) => {

@@ -35,3 +35,13 @@ if (manualSearch instanceof HTMLInputElement) {
     });
   }
 }
+
+const durationInput = document.querySelector("[data-duration-input]");
+if (durationInput instanceof HTMLInputElement) {
+  for (const button of document.querySelectorAll("[data-duration-value]")) {
+    button.addEventListener("click", () => {
+      durationInput.value = button.getAttribute("data-duration-value") || durationInput.value;
+      durationInput.focus();
+    });
+  }
+}
