@@ -192,11 +192,12 @@ export class MySqlRepository implements AppRepository {
   private async importSqliteIfConfigured(): Promise<void> {
     const sourcePath = this.environment.MYSQL_MIGRATION_PATH?.trim();
     if (!sourcePath) return;
-    const filename = path.resolve(sourcePath);
-    if (!existsSync(filename)) throw new Error(`MYSQL_MIGRATION_PATH does not exist: ${filename}`);
 
     const [markerRows] = await this.pool.execute<QueryRow[]>("SELECT meta_key FROM app_meta WHERE meta_key=?", [migrationKey]);
     if (markerRows.length > 0) return;
+
+    const filename = path.resolve(sourcePath);
+    if (!existsSync(filename)) throw new Error(`MYSQL_MIGRATION_PATH does not exist: ${filename}`);
 
     const [countRows] = await this.pool.query<QueryRow[]>(`
       SELECT
