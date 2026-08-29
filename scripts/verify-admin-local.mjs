@@ -100,11 +100,31 @@ try {
     status: "1",
   });
   assert(codeUpdated.status === 302, "Authorization code update failed");
+  const registered = await form("/register", "", {
+    email: "code-customer@example.com",
+    authCode: "ADMINFLOWTEST",
+    password: "code-customer-password",
+    acceptPolicies: "yes",
+  });
+  assert(registered.status === 302 && registered.headers.get("location") === "/vehicles", "Email-only registration failed");
+  const customerCookie = registered.headers.get("set-cookie")?.split(";", 1)[0];
+  assert(customerCookie && (await request("/vehicles", { headers: { Cookie: customerCookie } })).status === 200, "Activated customer cannot access the library");
+  const usedCodesHtml = await (await request("/admin/codes", { headers: { Cookie: cookie } })).text();
+  assert(usedCodesHtml.includes('data-code-state="used"') && usedCodesHtml.includes("ADMINFLOWTEST"), "Redeemed authorization code did not remain in the Used audit list");
+  const bulkCodesCreated = await form("/admin/codes/bulk", cookie, {
+    _csrf: csrf,
+    count: "3",
+    durationHours: "2160",
+    prefix: "FLOW",
+  });
+  assert(bulkCodesCreated.status === 302 && bulkCodesCreated.headers.get("location") === "/admin/codes?generated=3", "Bulk authorization code creation failed");
+  const bulkCodesHtml = await (await request("/admin/codes", { headers: { Cookie: cookie } })).text();
+  assert((bulkCodesHtml.match(/FLOW-[A-F0-9]{20}/g) || []).length === 3, "Bulk authorization codes were not listed");
+  assert(bulkCodesHtml.includes('data-code-filter="used"'), "Authorization code audit filter is missing");
 
   const memberCreated = await form("/admin/members", cookie, {
     _csrf: csrf,
     email: "admin-flow-customer@example.com",
-    name: "Admin Flow Customer",
     contactAddress: "",
     password: "customer-flow-password",
     vipExpiresAt: "",
@@ -115,6 +135,7 @@ try {
   const membersHtml = await (await request("/admin/members", { headers: { Cookie: cookie } })).text();
   const memberId = membersHtml.match(/admin-flow-customer@example\.com[\s\S]*?\/admin\/members\/(\d+)\/edit/)?.[1];
   assert(memberId, "Created member was not listed");
+  assert(membersHtml.includes('data-member-filter="expired"') && membersHtml.includes("Library access active"), "Member access filters or explanation are missing");
   const memberExtended = await form(`/admin/members/${memberId}/extend`, cookie, { _csrf: csrf, days: "30" });
   assert(memberExtended.status === 302 && memberExtended.headers.get("location") === "/admin/members?extended=1", "Member extension failed");
   const memberEdit = await (await request(`/admin/members/${memberId}/edit`, { headers: { Cookie: cookie } })).text();
@@ -123,7 +144,6 @@ try {
   const memberUpdated = await form(`/admin/members/${memberId}`, cookie, {
     _csrf: csrf,
     email: "admin-flow-customer@example.com",
-    name: "Updated Admin Flow Customer",
     contactAddress: "Workshop",
     password: "",
     vipExpiresAt: expiry,
@@ -173,7 +193,8 @@ try {
       "admin-login",
       "admin-dashboard",
       "protected-modern-reader",
-      "code-create-and-update",
+      "email-only-registration-and-used-code-audit",
+      "code-create-update-and-bulk-generate",
       "member-create-update-and-extend",
       "vehicle-create-and-update",
     ],

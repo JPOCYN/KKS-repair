@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { SessionUser } from "./db.js";
 import {
+  adminCodesView,
+  adminMemberFormView,
   adminMembersView,
   adminView,
   contactView,
@@ -82,6 +84,7 @@ test("registration and public policy pages provide launch-ready privacy and take
   const contact = contactView("https://supercardocs.com");
   assert.match(registration, /name="acceptPolicies"/);
   assert.match(registration, /Personal Information Collection Statement/);
+  assert.doesNotMatch(registration, /name="name"/);
   assert.match(privacy, /Data we collect/);
   assert.match(privacy, /strictly necessary, secure session cookie/);
   assert.match(terms, /must not republish, redistribute, mirror, bulk-download/);
@@ -105,10 +108,18 @@ test("admin views expose quick code creation and member expiry actions", () => {
     vip_status: 1,
     vip_expires_at: "2030-01-01",
   }]);
+  const memberForm = adminMemberFormView(user);
+  const codes = adminCodesView(user, [{ id: 9, code: "USED-CODE", duration_hours: 720, is_used: 1, status: 1 }]);
   assert.match(dashboard, /Generate an access code/);
   assert.match(dashboard, /Contact requests/);
   assert.match(dashboard, /name="durationHours"/);
   assert.match(members, /\/admin\/members\/7\/extend/);
   assert.match(members, /\+1 year/);
+  assert.match(members, /data-member-filter="expired"/);
+  assert.match(members, /Library access active/);
+  assert.doesNotMatch(memberForm, /name="name"/);
+  assert.match(codes, /action="\/admin\/codes\/bulk"/);
+  assert.match(codes, /Redeemed codes remain in the Used list for audit/);
+  assert.match(codes, /data-code-state="used"/);
   assert.match(`${dashboard}${members}`, /Independent content notice/);
 });

@@ -37,12 +37,32 @@ test("SQLite remains the default repository and persists application sessions", 
     });
     const member = (await repository.listMembers()).find((item) => item.email === "customer@example.com");
     assert.ok(member);
+    const customerLogin = await repository.findLoginUser("customer@example.com");
+    assert.ok(customerLogin);
+    const blockedCustomerSession = await repository.createSession(customerLogin.id);
+    assert.equal(await repository.getSessionUser(blockedCustomerSession.token), null);
     const extended = await repository.extendMemberVip(Number(member.id), 30);
     assert.ok(extended);
     assert.ok(new Date(extended).valueOf() > Date.now() + 29 * 24 * 60 * 60 * 1000);
     const updatedMember = await repository.getMember(Number(member.id));
     assert.equal(updatedMember?.vip_status, 1);
     assert.equal(updatedMember?.vip_expires_at, extended);
+    assert.equal((await repository.getSessionUser(blockedCustomerSession.token))?.email, "customer@example.com");
+    await repository.createMember({
+      email: "expired@example.com",
+      name: "expired@example.com",
+      contactAddress: null,
+      passwordHash: hashPassword("expired-test-password"),
+      status: true,
+      vipStatus: true,
+      vipExpiresAt: "2020-01-01T00:00:00.000Z",
+    });
+    const expiredLogin = await repository.findLoginUser("expired@example.com");
+    assert.ok(expiredLogin);
+    assert.equal(expiredLogin.vipStatus, true);
+    assert.equal(expiredLogin.vipExpiresAt, "2020-01-01T00:00:00.000Z");
+    const expiredSession = await repository.createSession(expiredLogin.id);
+    assert.equal(await repository.getSessionUser(expiredSession.token), null);
     await repository.createContactRequest({
       name: "Rights Holder",
       email: "rights@example.com",

@@ -388,7 +388,11 @@ export function getSessionUser(db: AppDatabase, token: string | undefined): Sess
     SELECT u.id, u.email, u.name, u.role, s.csrf_token AS csrfToken
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = 1
-  `).get(sha256(token), new Date().toISOString()) as SessionUser | undefined;
+      AND (u.role = 'admin' OR (u.vip_status = 1 AND (
+        u.vip_expires_at IS NULL OR
+        CASE WHEN length(u.vip_expires_at) = 10 THEN u.vip_expires_at || 'T23:59:59.999Z' ELSE u.vip_expires_at END > ?
+      )))
+  `).get(sha256(token), new Date().toISOString(), new Date().toISOString()) as SessionUser | undefined;
   return row || null;
 }
 

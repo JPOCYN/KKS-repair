@@ -44,6 +44,8 @@ export interface LoginUser {
   passwordHash: string;
   role: "admin" | "customer";
   status: boolean;
+  vipStatus: boolean;
+  vipExpiresAt: string | null;
 }
 
 export interface DashboardData {

@@ -148,7 +148,7 @@ export class SupabaseRepository implements AppRepository {
 
   async findLoginUser(email: string): Promise<LoginUser | null> {
     const { data, error } = await this.client.from("app_users")
-      .select("id,password_hash,role,status")
+      .select("id,password_hash,role,status,vip_status,vip_expires_at")
       .eq("email", email)
       .maybeSingle();
     assertNoError(error, "Cannot read login account");
@@ -157,6 +157,8 @@ export class SupabaseRepository implements AppRepository {
       passwordHash: data.password_hash,
       role: data.role,
       status: data.status,
+      vipStatus: data.vip_status,
+      vipExpiresAt: data.vip_expires_at,
     } : null;
   }
 

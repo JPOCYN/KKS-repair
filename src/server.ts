@@ -173,7 +173,6 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHe
 const loginSchema = z.object({ email: z.email().max(254), password: z.string().min(1).max(200) });
 const registerSchema = z.object({
   email: z.email().max(254),
-  name: z.string().trim().min(1).max(120),
   authCode: z.string().trim().min(1).max(100),
   password: z.string().min(10).max(200),
   acceptPolicies: z.literal("yes"),
@@ -268,12 +267,12 @@ app.post("/contact", contactLimiter, async (req, res) => {
 
 app.post("/register", loginLimiter, async (req: AuthenticatedRequest, res) => {
   const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).send(registerView("Enter valid account details, use a password of at least 10 characters, and accept the Terms and Privacy Statement.", req.body));
+  if (!parsed.success) return res.status(400).send(registerView("Enter a valid email and authorization code, use a password of at least 10 characters, and accept the Terms and Privacy Statement.", req.body));
 
   try {
     const userId = await repository.registerCustomer({
       email: parsed.data.email,
-      name: parsed.data.name,
+      name: parsed.data.email,
       authCode: parsed.data.authCode,
       passwordHash: hashPassword(parsed.data.password),
     });
@@ -294,6 +293,14 @@ app.post("/login", loginLimiter, async (req: AuthenticatedRequest, res) => {
   const user = await repository.findLoginUser(parsed.data.email);
   if (!user || !user.status || !verifyPassword(parsed.data.password, user.passwordHash)) {
     return res.status(401).send(loginView("Email or password is incorrect."));
+  }
+  const accessExpiry = user.vipExpiresAt && /^\d{4}-\d{2}-\d{2}$/.test(user.vipExpiresAt)
+    ? `${user.vipExpiresAt}T23:59:59.999Z`
+    : user.vipExpiresAt;
+  const accessExpiryTime = accessExpiry ? new Date(accessExpiry).valueOf() : null;
+  const accessExpired = accessExpiryTime !== null && (!Number.isFinite(accessExpiryTime) || accessExpiryTime <= Date.now());
+  if (user.role === "customer" && (!user.vipStatus || accessExpired)) {
+    return res.status(403).send(loginView("Your library access is inactive or expired. Contact the administrator to renew access."));
   }
   const session = await repository.createSession(user.id);
   const cookie = [`kks_session=${encodeURIComponent(session.token)}`, "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=43200"];
@@ -355,7 +362,6 @@ const vehicleSchema = z.object({
 });
 const memberSchema = z.object({
   email: z.email().max(254),
-  name: z.string().trim().min(1).max(120),
   contactAddress: z.string().trim().max(500),
   password: z.string().max(200),
   vipExpiresAt: z.union([z.literal(""), z.iso.date()]),
@@ -368,6 +374,11 @@ const codeSchema = z.object({
   durationHours: z.coerce.number().int().min(1).max(87600),
   status: z.string().optional(),
 });
+const bulkCodeSchema = z.object({
+  count: z.coerce.number().int().min(1).max(100),
+  durationHours: z.coerce.number().int().min(1).max(87600),
+  prefix: z.string().trim().max(16).regex(/^$|^[A-Za-z0-9_-]+$/),
+});
 
 async function brands(): Promise<Array<Record<string, unknown>>> {
   return repository.listBrands();
@@ -378,7 +389,7 @@ function vehicleDraft(body: Record<string, unknown>, id?: number): Record<string
 }
 
 function memberDraft(body: Record<string, unknown>, id?: number): Record<string, unknown> {
-  return { id, email: body.email, name: body.name, contact_address: body.contactAddress, vip_expires_at: body.vipExpiresAt, status: body.status ? 1 : 0, vip_status: body.vipStatus ? 1 : 0 };
+  return { id, email: body.email, contact_address: body.contactAddress, vip_expires_at: body.vipExpiresAt, status: body.status ? 1 : 0, vip_status: body.vipStatus ? 1 : 0 };
 }
 
 function vehicleInput(value: z.infer<typeof vehicleSchema>): VehicleInput {
@@ -397,14 +408,15 @@ function vehicleInput(value: z.infer<typeof vehicleSchema>): VehicleInput {
 }
 
 function memberInput(value: z.infer<typeof memberSchema>, passwordHash?: string): MemberInput {
+  const vipExpiresAt = value.vipExpiresAt ? `${value.vipExpiresAt}T23:59:59.999Z` : null;
   return {
     email: value.email,
-    name: value.name,
+    name: value.email,
     contactAddress: value.contactAddress || null,
     passwordHash,
     status: Boolean(value.status),
     vipStatus: Boolean(value.vipStatus),
-    vipExpiresAt: value.vipExpiresAt || null,
+    vipExpiresAt,
   };
 }
 
@@ -492,7 +504,8 @@ app.post("/admin/members/:id/extend", requireAdmin, requireCsrf, async (req: Aut
 
 app.get("/admin/codes", requireAdmin, async (req: AuthenticatedRequest, res) => {
   const codes = await repository.listCodes();
-  res.send(adminCodesView(req.sessionUser!, codes, req.query.saved === "1"));
+  const generated = Number(req.query.generated);
+  res.send(adminCodesView(req.sessionUser!, codes, req.query.saved === "1", Number.isInteger(generated) ? generated : 0));
 });
 
 app.get("/admin/codes/new", requireAdmin, (req: AuthenticatedRequest, res) => {
@@ -515,6 +528,17 @@ app.post("/admin/codes", requireAdmin, requireCsrf, async (req: AuthenticatedReq
   } catch {
     res.status(409).send(adminCodeFormView(req.sessionUser!, { code, duration_hours: parsed.data.durationHours, status: parsed.data.status ? 1 : 0 }, "That authorization code already exists."));
   }
+});
+
+app.post("/admin/codes/bulk", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  const parsed = bulkCodeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).send("Choose 1 to 100 codes, a valid duration, and an optional letters-and-numbers prefix.");
+  const prefix = parsed.data.prefix ? `${parsed.data.prefix.toUpperCase()}-` : "";
+  for (let index = 0; index < parsed.data.count; index += 1) {
+    const code = `${prefix}${randomBytes(10).toString("hex").toUpperCase()}`;
+    await repository.createCode({ code, durationHours: parsed.data.durationHours, status: true });
+  }
+  res.redirect(`/admin/codes?generated=${parsed.data.count}`);
 });
 
 app.post("/admin/codes/:id", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {

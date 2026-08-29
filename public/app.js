@@ -63,3 +63,62 @@ if (durationInput instanceof HTMLInputElement) {
     });
   }
 }
+
+function initializeAdminFilter({ rowSelector, filterSelector, filterAttribute, searchSelector, stateAttribute, countSelector, emptySelector, initialState = "" }) {
+  const rows = [...document.querySelectorAll(rowSelector)];
+  if (!rows.length) return;
+  const filters = [...document.querySelectorAll(filterSelector)];
+  const search = document.querySelector(searchSelector);
+  const count = document.querySelector(countSelector);
+  const empty = document.querySelector(emptySelector);
+  let selectedState = initialState;
+
+  const apply = () => {
+    const query = search instanceof HTMLInputElement ? search.value.trim().toLowerCase() : "";
+    let visible = 0;
+    for (const row of rows) {
+      const matchesState = !selectedState || row.getAttribute(stateAttribute) === selectedState;
+      const matchesSearch = !query || (row.getAttribute("data-search") || "").includes(query);
+      const matches = matchesState && matchesSearch;
+      row.toggleAttribute("hidden", !matches);
+      if (matches) visible += 1;
+    }
+    if (count) count.textContent = String(visible);
+    if (empty) empty.toggleAttribute("hidden", visible !== 0);
+  };
+
+  if (search instanceof HTMLInputElement) search.addEventListener("input", apply);
+  for (const filter of filters) {
+    filter.addEventListener("click", () => {
+      selectedState = filter.getAttribute(filterAttribute) || "";
+      for (const candidate of filters) {
+        const active = candidate === filter;
+        candidate.classList.toggle("is-active", active);
+        candidate.setAttribute("aria-pressed", String(active));
+      }
+      apply();
+    });
+  }
+  apply();
+}
+
+initializeAdminFilter({
+  rowSelector: "[data-member-admin-row]",
+  filterSelector: "[data-member-filter]",
+  filterAttribute: "data-member-filter",
+  searchSelector: "[data-member-admin-search]",
+  stateAttribute: "data-member-state",
+  countSelector: "[data-member-result-count]",
+  emptySelector: "[data-member-empty]",
+});
+
+initializeAdminFilter({
+  rowSelector: "[data-code-admin-row]",
+  filterSelector: "[data-code-filter]",
+  filterAttribute: "data-code-filter",
+  searchSelector: "[data-code-admin-search]",
+  stateAttribute: "data-code-state",
+  countSelector: "[data-code-result-count]",
+  emptySelector: "[data-code-empty]",
+  initialState: "available",
+});

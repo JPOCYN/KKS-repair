@@ -85,9 +85,9 @@ export class SqliteRepository implements AppRepository {
   }
 
   async findLoginUser(email: string): Promise<LoginUser | null> {
-    const row = this.database.prepare("SELECT id, password_hash, role, status FROM users WHERE email = ? COLLATE NOCASE")
-      .get(email) as { id: number; password_hash: string; role: "admin" | "customer"; status: number } | undefined;
-    return row ? { id: row.id, passwordHash: row.password_hash, role: row.role, status: row.status === 1 } : null;
+    const row = this.database.prepare("SELECT id, password_hash, role, status, vip_status, vip_expires_at FROM users WHERE email = ? COLLATE NOCASE")
+      .get(email) as { id: number; password_hash: string; role: "admin" | "customer"; status: number; vip_status: number; vip_expires_at: string | null } | undefined;
+    return row ? { id: row.id, passwordHash: row.password_hash, role: row.role, status: row.status === 1, vipStatus: row.vip_status === 1, vipExpiresAt: row.vip_expires_at } : null;
   }
 
   async listVisibleVehicles(): Promise<DataRecord[]> {
