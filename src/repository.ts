@@ -1,6 +1,5 @@
 import type { SessionUser } from "./db.js";
 import { SqliteRepository } from "./sqlite-repository.js";
-import { SupabaseRepository } from "./supabase-repository.js";
 
 export type DataRecord = Record<string, unknown>;
 
@@ -78,6 +77,9 @@ export interface AppRepository {
 export async function createAppRepository(environment: NodeJS.ProcessEnv = process.env): Promise<AppRepository> {
   const backend = (environment.DATA_BACKEND || "sqlite").trim().toLowerCase();
   if (backend === "sqlite") return new SqliteRepository(environment);
-  if (backend === "supabase") return SupabaseRepository.create(environment);
+  if (backend === "supabase") {
+    const { SupabaseRepository } = await import("./supabase-repository.js");
+    return SupabaseRepository.create(environment);
+  }
   throw new Error("DATA_BACKEND must be sqlite or supabase");
 }

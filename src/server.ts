@@ -1,14 +1,13 @@
 import { randomBytes } from "node:crypto";
-import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { z } from "zod";
+import { loadAppConfig } from "./config.js";
 import type { SessionUser } from "./db.js";
 import { hashPassword, verifyPassword } from "./password.js";
-import { createManualBundleHandler } from "./manual-bundle.js";
+import { createManualStorageHandler } from "./manual-storage.js";
 import { isAllowedWriteOrigin } from "./origin.js";
-import { createSupabaseManualHandler } from "./supabase-manuals.js";
 import {
   createAppRepository,
   type CodeInput,
@@ -30,17 +29,15 @@ import {
 } from "./views.js";
 
 const app = express();
+const config = loadAppConfig();
 const repository = await createAppRepository();
-const configuredPort = process.env.PORT;
-const port = configuredPort && /^\d+$/.test(configuredPort) ? Number(configuredPort) : configuredPort || 3000;
-const production = process.env.NODE_ENV === "production";
-if (production) app.set("trust proxy", 1);
+if (config.production) app.set("trust proxy", 1);
 
 app.disable("x-powered-by");
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 app.use(express.json({ limit: "64kb" }));
-app.use(express.static("public", { maxAge: production ? "7d" : 0 }));
+app.use(express.static(config.publicDirectory, { maxAge: config.production ? "7d" : 0 }));
 
 type AuthenticatedRequest = Request & { sessionUser?: SessionUser; sessionToken?: string };
 
@@ -104,33 +101,12 @@ function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunctio
 
 app.use(recoveredDatabaseMiddleware);
 app.use(sessionMiddleware);
-const manualsDirectory = path.resolve(process.env.MANUALS_DIR || "manuals");
-const manualBundleFile = path.resolve(process.env.MANUAL_BUNDLE_PATH || "private-data/manuals.bundle");
-const manualIndexFile = path.resolve(process.env.MANUAL_INDEX_PATH || "private-data/manuals-index.json");
-const manualStorage = (process.env.MANUAL_STORAGE || "local").trim().toLowerCase();
-if (manualStorage === "supabase") {
-  app.use(
-    "/manuals",
-    requireUser,
-    await createSupabaseManualHandler(),
-    (_req, res) => res.status(404).send("Manual file not found"),
-  );
-} else if (manualStorage === "local") {
-  app.use(
-    "/manuals",
-    requireUser,
-    express.static(manualsDirectory, { fallthrough: true, maxAge: production ? "1d" : 0 }),
-    createManualBundleHandler(manualBundleFile, manualIndexFile),
-    (_req, res) => res.status(404).send("Manual file not found"),
-  );
-} else {
-  throw new Error("MANUAL_STORAGE must be local or supabase");
-}
+app.use("/manuals", requireUser, await createManualStorageHandler(config));
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
   if (!isAllowedWriteOrigin({
-    production,
-    configuredOrigins: process.env.PUBLIC_ORIGIN,
+    production: config.production,
+    configuredOrigins: config.configuredOrigins,
     requestOrigin: req.get("origin"),
     fetchSite: req.get("sec-fetch-site"),
     requestReferer: req.get("referer"),
@@ -183,7 +159,7 @@ app.post("/register", loginLimiter, async (req: AuthenticatedRequest, res) => {
     if (!userId) return res.status(400).send(registerView("That authorization code is invalid, disabled, or already used.", req.body));
     const session = await repository.createSession(userId);
     const cookie = [`kks_session=${encodeURIComponent(session.token)}`, "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=43200"];
-    if (production) cookie.push("Secure");
+    if (config.production) cookie.push("Secure");
     res.setHeader("Set-Cookie", cookie.join("; "));
     res.redirect("/vehicles");
   } catch {
@@ -200,7 +176,7 @@ app.post("/login", loginLimiter, async (req: AuthenticatedRequest, res) => {
   }
   const session = await repository.createSession(user.id);
   const cookie = [`kks_session=${encodeURIComponent(session.token)}`, "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=43200"];
-  if (production) cookie.push("Secure");
+  if (config.production) cookie.push("Secure");
   res.setHeader("Set-Cookie", cookie.join("; "));
   res.redirect(user.role === "admin" ? "/admin" : "/vehicles");
 });
@@ -418,7 +394,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).send("Internal server error");
 });
 
-const server = app.listen(port, () => console.log(`KKS Repair listening on http://localhost:${port}`));
+const server = app.listen(config.port, () => console.log(`KKS Repair listening on http://localhost:${config.port}`));
 
 function shutdown(): void {
   server.close(() => {

@@ -8,5 +8,6 @@ data/
 recovery/private/
 manuals/
 private-transfer/
+output/
 *.har
 *.log

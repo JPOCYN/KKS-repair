@@ -18,6 +18,9 @@
     "recover:manual-html": "node scripts/recover-manual-html.mjs --concurrency=16",
     "recover:manual-assets": "node scripts/recover-manual-assets.mjs --concurrency=20 --max-gb=24",
     "build:manual-bundle": "node scripts/build-manual-bundle.mjs",
+    "shard:manual-bundle": "node scripts/shard-manual-bundle.mjs",
+    "verify:manual-bundle": "node scripts/verify-manual-bundle.mjs",
+    "verify:deployment": "node scripts/verify-deployment.mjs",
     "verify:recovery": "node scripts/verify-recovery.mjs",
     "test": "node --import tsx --test src/**/*.test.ts"
   },

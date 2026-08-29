@@ -7,10 +7,27 @@ interface ManualBundleEntry {
   length: number;
 }
 
-interface ManualBundleIndex {
+interface ManualBundleIndexV1 {
   version: 1;
   files: Record<string, ManualBundleEntry>;
 }
+
+interface ManualBundlePart {
+  file: string;
+  length: number;
+}
+
+interface ShardedManualBundleEntry extends ManualBundleEntry {
+  part: number;
+}
+
+interface ManualBundleIndexV2 {
+  version: 2;
+  parts: ManualBundlePart[];
+  files: Record<string, ShardedManualBundleEntry>;
+}
+
+type ManualBundleIndex = ManualBundleIndexV1 | ManualBundleIndexV2;
 
 interface ByteRange {
   start: number;
@@ -54,20 +71,45 @@ export function parseByteRange(header: string | undefined, length: number): Byte
 
 export function createManualBundleHandler(bundleFile: string, indexFile: string): RequestHandler {
   let index: ManualBundleIndex | null = null;
+  let partFiles: string[] = [];
 
   function loadIndex(): boolean {
     if (index) return true;
-    if (!existsSync(bundleFile) || !existsSync(indexFile)) return false;
+    if (!existsSync(indexFile)) return false;
     const candidate = JSON.parse(readFileSync(indexFile, "utf8")) as ManualBundleIndex;
-    if (candidate.version !== 1 || !candidate.files || typeof candidate.files !== "object") throw new Error("Unsupported manual bundle index");
-    const bundleBytes = statSync(bundleFile).size;
-    for (const [name, entry] of Object.entries(candidate.files)) {
-      if (!Number.isSafeInteger(entry.offset) || !Number.isSafeInteger(entry.length) || entry.offset < 0 || entry.length < 0 || entry.offset + entry.length > bundleBytes) {
-        throw new Error(`Invalid manual bundle entry: ${name}`);
+    if (!candidate.files || typeof candidate.files !== "object") throw new Error("Unsupported manual bundle index");
+    if (candidate.version === 1) {
+      if (!existsSync(bundleFile)) return false;
+      const bundleBytes = statSync(bundleFile).size;
+      partFiles = [bundleFile];
+      for (const [name, entry] of Object.entries(candidate.files)) {
+        if (!Number.isSafeInteger(entry.offset) || !Number.isSafeInteger(entry.length) || entry.offset < 0 || entry.length < 0 || entry.offset + entry.length > bundleBytes) {
+          throw new Error(`Invalid manual bundle entry: ${name}`);
+        }
       }
+    } else if (candidate.version === 2 && Array.isArray(candidate.parts) && candidate.parts.length > 0) {
+      const indexDirectory = path.dirname(indexFile);
+      partFiles = candidate.parts.map((part, partNumber) => {
+        if (!/^[A-Za-z0-9._-]+$/.test(part.file) || !Number.isSafeInteger(part.length) || part.length < 0) {
+          throw new Error(`Invalid manual bundle part: ${partNumber}`);
+        }
+        const partFile = path.join(indexDirectory, part.file);
+        if (!existsSync(partFile) || statSync(partFile).size !== part.length) {
+          throw new Error(`Manual bundle part is missing or incomplete: ${part.file}`);
+        }
+        return partFile;
+      });
+      for (const [name, entry] of Object.entries(candidate.files)) {
+        const part = candidate.parts[entry.part];
+        if (!Number.isSafeInteger(entry.part) || !part || !Number.isSafeInteger(entry.offset) || !Number.isSafeInteger(entry.length) || entry.offset < 0 || entry.length < 0 || entry.offset + entry.length > part.length) {
+          throw new Error(`Invalid manual bundle entry: ${name}`);
+        }
+      }
+    } else {
+      throw new Error("Unsupported manual bundle index");
     }
     index = candidate;
-    console.log(`Manual bundle ready: ${Object.keys(candidate.files).length} files`);
+    console.log(`Manual bundle ready: ${Object.keys(candidate.files).length} files in ${partFiles.length} part(s)`);
     return true;
   }
 
@@ -98,7 +140,8 @@ export function createManualBundleHandler(bundleFile: string, indexFile: string)
       res.end();
       return;
     }
-    const stream = createReadStream(bundleFile, { start: entry.offset + relativeStart, end: entry.offset + relativeEnd });
+    const partNumber = index!.version === 2 ? (entry as ShardedManualBundleEntry).part : 0;
+    const stream = createReadStream(partFiles[partNumber]!, { start: entry.offset + relativeStart, end: entry.offset + relativeEnd });
     stream.on("error", next);
     stream.pipe(res);
   };

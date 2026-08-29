@@ -11,27 +11,52 @@ export function escapeHtml(value: unknown): string {
 
 function page(title: string, content: string, user?: SessionUser | null): string {
   const navigation = user
-    ? `<nav><a href="/vehicles">Vehicles</a>${user.role === "admin" ? '<a href="/admin">Admin</a>' : ""}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Log out</button></form></nav>`
+    ? `<nav aria-label="Primary navigation"><a href="/vehicles">Vehicle library</a>${user.role === "admin" ? '<a href="/admin">Administration</a>' : ""}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Sign out</button></form></nav>`
     : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · KKS Repair</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"></head><body><header><a class="brand" href="/">KKS Repair</a>${navigation}</header><main>${content}</main><footer>Recovered and rebuilt for independent operation.</footer></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><title>${escapeHtml(title)} · KKS Repair</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="KKS Repair home"><span class="brand-mark" aria-hidden="true">K</span><span><strong>KKS</strong><small>Repair library</small></span></a>${navigation}</header><main>${content}</main><footer><span class="footer-brand">KKS Repair</span><span>Independent service information platform.</span></footer></body></html>`;
 }
 
 export function loginView(error = ""): string {
-  return page("Sign in", `<section class="auth-card"><h1>Sign in</h1><p>Access your vehicle repair manuals.</p>${error ? `<div class="alert">${escapeHtml(error)}</div>` : ""}<form method="post" action="/login" class="stack"><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">Sign in</button></form><p class="auth-help">Have an unused authorization code? <a href="/register">Create an account</a>.</p></section>`);
+  return page("Sign in", `<section class="auth-layout"><div class="auth-intro"><span class="section-label">Professional workshop access</span><h1>Technical knowledge, ready when the job begins.</h1><p>Open the recovered KKS service library from any modern browser. Your vehicle catalogue and manual access remain protected behind your account.</p><ul class="trust-list"><li><span>01</span>Recovered manufacturer service information</li><li><span>02</span>Fast vehicle and document navigation</li><li><span>03</span>Private account access</li></ul></div><section class="auth-card"><div class="card-heading"><span class="section-label">Member portal</span><h2>Welcome back</h2><p>Sign in to continue to your repair library.</p></div>${error ? `<div class="alert" role="alert">${escapeHtml(error)}</div>` : ""}<form method="post" action="/login" class="stack"><label>Email address<input name="email" type="email" autocomplete="username" placeholder="name@example.com" required></label><label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="primary" type="submit">Sign in to KKS</button></form><p class="auth-help">Have an unused authorization code? <a href="/register">Create an account</a>.</p></section></section>`);
 }
 
 export function registerView(error = "", values: Record<string, unknown> = {}): string {
-  return page("Create account", `<section class="auth-card"><h1>Create account</h1><p>Use an unused KKS authorization code to activate access.</p>${error ? `<div class="alert">${escapeHtml(error)}</div>` : ""}<form method="post" action="/register" class="stack"><label>Email<input name="email" type="email" autocomplete="email" value="${escapeHtml(values.email)}" required></label><label>Name<input name="name" maxlength="120" value="${escapeHtml(values.name)}" required></label><label>Authorization code<input name="authCode" autocomplete="off" maxlength="100" value="${escapeHtml(values.authCode)}" required></label><label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label><button class="primary" type="submit">Create account</button></form><p class="auth-help"><a href="/login">Back to sign in</a></p></section>`);
+  return page("Create account", `<section class="auth-layout"><div class="auth-intro"><span class="section-label">Activate your access</span><h1>Bring the complete repair library into your workflow.</h1><p>Create your private account with an authorization code supplied by KKS Repair.</p><ul class="trust-list"><li><span>01</span>One account for the complete catalogue</li><li><span>02</span>Secure, time-controlled access</li><li><span>03</span>Desktop and mobile browser support</li></ul></div><section class="auth-card"><div class="card-heading"><span class="section-label">New member</span><h2>Create your account</h2><p>Enter your details and unused authorization code.</p></div>${error ? `<div class="alert" role="alert">${escapeHtml(error)}</div>` : ""}<form method="post" action="/register" class="stack"><label>Email address<input name="email" type="email" autocomplete="email" value="${escapeHtml(values.email)}" required></label><label>Full name<input name="name" maxlength="120" value="${escapeHtml(values.name)}" required></label><label>Authorization code<input name="authCode" autocomplete="off" maxlength="100" value="${escapeHtml(values.authCode)}" required></label><label>Password <small>Minimum 10 characters</small><input name="password" type="password" autocomplete="new-password" minlength="10" required></label><button class="primary" type="submit">Create account</button></form><p class="auth-help">Already registered? <a href="/login">Return to sign in</a>.</p></section></section>`);
+}
+
+const nonEnglishScripts = /[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
+
+function englishVehicleDescription(car: Record<string, unknown>): string {
+  const description = String(car.synopsis || "").trim();
+  if (description && !nonEnglishScripts.test(description)) return description;
+  const vehicle = [car.brand_name, car.name].filter(Boolean).join(" ");
+  return `Recovered service information for ${vehicle || "this vehicle"}, including repair procedures, system descriptions and wiring documentation.`;
 }
 
 export function vehicleListView(user: SessionUser, cars: Array<Record<string, unknown>>): string {
-  const cards = cars.map((car) => `<article class="vehicle-card"><img src="${escapeHtml(car.image_path)}" alt="${escapeHtml(car.name)}"><div><span class="eyebrow">${escapeHtml(car.brand_name)}</span><h2>${escapeHtml(car.name)}</h2><p>${escapeHtml(car.synopsis || "Repair information and technical manual")}</p><a class="primary button" href="/vehicles/${escapeHtml(car.id)}">Open manual</a></div></article>`).join("");
-  return page("Vehicles", `<section class="hero"><div><span class="eyebrow">Welcome, ${escapeHtml(user.name)}</span><h1>Your repair library</h1><p>Select a vehicle to open its recovered service information.</p></div></section><section class="vehicle-grid">${cards}</section>`, user);
+  const cards = cars.map((car) => `<article class="vehicle-card" data-vehicle-card data-search="${escapeHtml(`${car.brand_name || ""} ${car.name || ""} ${car.code || ""}`.toLowerCase())}"><div class="vehicle-card__media"><img src="${escapeHtml(car.image_path)}" alt="${escapeHtml(car.name)}" loading="lazy"><span class="availability"><i></i> Manual available</span></div><div class="vehicle-card__body"><span class="section-label">${escapeHtml(car.brand_name)}</span><h2>${escapeHtml(car.name)}</h2><p>${escapeHtml(englishVehicleDescription(car))}</p><a class="card-link" href="/vehicles/${escapeHtml(car.id)}"><span>Open service manual</span><span aria-hidden="true">→</span></a></div></article>`).join("");
+  return page("Vehicle library", `<section class="library-hero"><div><span class="section-label">Member workspace</span><h1>Vehicle repair library</h1><p>Welcome back, ${escapeHtml(user.name)}. Choose a vehicle to browse its recovered technical documentation.</p></div><div class="library-meta"><strong>${cars.length}</strong><span>vehicles available</span></div></section><section class="library-toolbar" aria-label="Vehicle filters"><label class="search-field"><span class="sr-only">Search vehicles</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search by vehicle or model" data-vehicle-search autocomplete="off"></label><p><strong data-result-count>${cars.length}</strong> vehicles</p></section><section class="vehicle-grid">${cards}</section><p class="empty-results" data-empty-results hidden>No vehicles match your search.</p>`, user);
+}
+
+export function englishOnlyManualMenu(menu: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const hidden = new Set(menu.filter((item) => nonEnglishScripts.test(String(item.name || ""))).map((item) => String(item.id)));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const item of menu) {
+      if (item.parent_id !== null && hidden.has(String(item.parent_id)) && !hidden.has(String(item.id))) {
+        hidden.add(String(item.id));
+        changed = true;
+      }
+    }
+  }
+  return menu.filter((item) => !hidden.has(String(item.id)));
 }
 
 export function vehicleDetailView(user: SessionUser, car: Record<string, unknown>, menu: Array<Record<string, unknown>>): string {
+  const englishMenu = englishOnlyManualMenu(menu);
   const children = new Map<string, Array<Record<string, unknown>>>();
-  for (const item of menu) {
+  for (const item of englishMenu) {
     const key = item.parent_id === null ? "root" : String(item.parent_id);
     children.set(key, [...(children.get(key) || []), item]);
   }
@@ -39,19 +64,20 @@ export function vehicleDetailView(user: SessionUser, car: Record<string, unknown
     const nested = children.has(String(item.id));
     const label = escapeHtml(item.name);
     const content = item.relative_file
-      ? `<a href="/manuals/${escapeHtml(car.folder_name)}/html/${escapeHtml(item.relative_file)}" target="manual-frame">${label}</a>`
+      ? `<a href="/manuals/${escapeHtml(car.folder_name)}/html/${escapeHtml(item.relative_file)}" target="manual-frame" data-manual-link>${label}</a>`
       : `<span>${label}</span>`;
     return nested
       ? `<li><details${item.parent_id === null ? " open" : ""}><summary>${label}</summary>${renderBranch(String(item.id))}</details></li>`
       : `<li>${content}</li>`;
   }).join("")}</ul>`;
-  const menuItems = menu.length
+  const menuItems = englishMenu.length
     ? renderBranch("root")
     : `<div class="empty"><h2>Manual content recovery in progress</h2><p>The vehicle catalog is recovered. Its original manual page files still need to be copied from the old server.</p></div>`;
-  const manualArea = menu.length
-    ? `<section class="manual-layout"><aside><h2>Contents</h2>${menuItems}</aside><iframe name="manual-frame" title="Repair manual"></iframe></section>`
+  const linkedDocuments = englishMenu.filter((item) => item.relative_file).length;
+  const manualArea = englishMenu.length
+    ? `<section class="manual-layout"><aside><div class="manual-sidebar__header"><span class="section-label">Service information</span><h2>Manual contents</h2><p>${linkedDocuments.toLocaleString("en-US")} English documents</p><label class="search-field search-field--compact"><span class="sr-only">Search manual contents</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search contents" data-manual-search autocomplete="off"></label></div><nav class="manual-navigation" aria-label="Manual contents">${menuItems}</nav></aside><iframe name="manual-frame" title="Repair manual" srcdoc="<!doctype html><html lang='en'><head><meta charset='utf-8'><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f6f8;color:#1b2028;font-family:Arial,sans-serif}.p{max-width:520px;padding:40px;text-align:center}.m{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 20px;border-radius:16px;background:#ffb422;color:#15110a;font-size:28px;font-weight:800}h2{margin:0 0 10px;font-size:24px}p{margin:0;color:#667080;line-height:1.6}</style></head><body><div class='p'><div class='m'>K</div><h2>Select a document</h2><p>Choose an item from the English manual contents to open the service information here.</p></div></body></html>"></iframe></section>`
     : `<section class="manual-pending">${menuItems}</section>`;
-  return page(String(car.name), `<a href="/vehicles">← Back to vehicles</a><section class="vehicle-heading"><img src="${escapeHtml(car.image_path)}" alt=""><div><span class="eyebrow">${escapeHtml(car.brand_name)}</span><h1>${escapeHtml(car.name)}</h1><p>${escapeHtml(car.synopsis)}</p></div></section>${manualArea}`, user);
+  return page(String(car.name), `<a class="back-link" href="/vehicles"><span aria-hidden="true">←</span> Vehicle library</a><section class="vehicle-heading"><div class="vehicle-heading__media"><img src="${escapeHtml(car.image_path)}" alt="${escapeHtml(car.name)}"></div><div><span class="section-label">${escapeHtml(car.brand_name)} service information</span><h1>${escapeHtml(car.name)}</h1><p>${escapeHtml(englishVehicleDescription(car))}</p><div class="vehicle-facts"><span><strong>${linkedDocuments.toLocaleString("en-US")}</strong> documents</span><span><strong>English</strong> interface</span><span><strong>Private</strong> access</span></div></div></section>${manualArea}`, user);
 }
 
 function table(headers: string[], rows: unknown[][]): string {
