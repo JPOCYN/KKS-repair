@@ -1,0 +1,66 @@
+[
+  {
+    "id": 1,
+    "type": "12c"
+  },
+  {
+    "id": 1024,
+    "type": "12c_650s_625c_spider"
+  },
+  {
+    "id": 2047,
+    "type": "570gt"
+  },
+  {
+    "id": 3070,
+    "type": "570s"
+  },
+  {
+    "id": 4093,
+    "type": "570s_spider"
+  },
+  {
+    "id": 5116,
+    "type": "620r"
+  },
+  {
+    "id": 6139,
+    "type": "720s"
+  },
+  {
+    "id": 7162,
+    "type": "720s_spider"
+  },
+  {
+    "id": 8185,
+    "type": "750s"
+  },
+  {
+    "id": 10232,
+    "type": "750s_spider"
+  },
+  {
+    "id": 12279,
+    "type": "artura"
+  },
+  {
+    "id": 13302,
+    "type": "artura_spider"
+  },
+  {
+    "id": 14325,
+    "type": "gt"
+  },
+  {
+    "id": 15348,
+    "type": "p1"
+  },
+  {
+    "id": 16371,
+    "type": "senna"
+  },
+  {
+    "id": 17394,
+    "type": "speedtail"
+  }
+]

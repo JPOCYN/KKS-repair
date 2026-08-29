@@ -1,0 +1,47 @@
+{
+  "status": "recovered-and-locally-verified",
+  "completedAt": "2026-08-29T00:40:21.862Z",
+  "catalog": {
+    "brands": 3,
+    "vehicles": 21,
+    "members": 49,
+    "administratorsInDeployDatabase": 0,
+    "authorizationCodes": 52,
+    "uniqueManualTrees": 16,
+    "recoveredMenuRecords": 14295,
+    "vehicleMenuRows": 19102,
+    "linkedVehicleMenuRows": 14009
+  },
+  "manualArchive": {
+    "indexedHtmlDocuments": 10201,
+    "missingIndexedHtmlDocuments": 0,
+    "physicalFiles": 105742,
+    "supplementalPhysicalFiles": 95541,
+    "bytes": 6993888685,
+    "partialFiles": 0,
+    "auditedUrls": 126471,
+    "successfulUrlEntries": 105747,
+    "confirmedSource404s": 20724,
+    "remainingFailedRequests": 0,
+    "stoppedForSizeLimit": false
+  },
+  "verification": {
+    "recoveryAudit": "passed",
+    "typescriptBuild": "passed",
+    "localSmokeTest": {
+      "healthEndpoint": "passed-200-database-connected",
+      "landingPage": "passed-200",
+      "unauthenticatedManualProtection": "passed-302-to-login"
+    },
+    "automatedTests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "dockerImage": "not-tested-docker-unavailable-on-recovery-workstation",
+    "productionDeployment": "awaiting-new-server"
+  },
+  "reports": [
+    "recovery/manual-download-report.json",
+    "recovery/manual-asset-report.json"
+  ]
+}

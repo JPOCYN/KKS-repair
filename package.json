@@ -1,0 +1,29 @@
+{
+  "name": "kks-repair-rebuild",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "import:recovery": "tsx src/import-recovery.ts",
+    "recover:manual-html": "node scripts/recover-manual-html.mjs --concurrency=16",
+    "recover:manual-assets": "node scripts/recover-manual-assets.mjs --concurrency=20 --max-gb=24",
+    "verify:recovery": "node scripts/verify-recovery.mjs",
+    "test": "node --import tsx --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3",
+    "express": "5.2.1",
+    "express-rate-limit": "8.6.2",
+    "helmet": "8.3.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/express": "5.0.6",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.playwright-cli/
+data/
+.env
+.env.*
+!.env.example
+recovery/private/
+manuals/
+*.har
+*.log

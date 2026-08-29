@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-08-29T00:34:00.822Z",
+  "finishedAt": "2026-08-29T00:40:21.862Z",
+  "discovered": 126471,
+  "processed": 126471,
+  "downloaded": 216,
+  "reused": 105531,
+  "missing": 20724,
+  "failed": 0,
+  "downloadedBytes": 70539484,
+  "stoppedForSize": false,
+  "maxBytes": 25769803776,
+  "failures": []
+}
