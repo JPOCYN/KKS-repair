@@ -7,8 +7,8 @@
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#101318">
   <title>Supercar Docs — Service Manual Reader</title>
-  <link rel="stylesheet" href="./reader.css">
-  <script src="./reader.js" defer></script>
+  <link rel="stylesheet" href="./reader.css?v=20260829-3">
+  <script src="./reader.js?v=20260829-3" defer></script>
 </head>
 <body data-catalog="./catalog.json" data-manuals-base="../manuals/">
   <a class="skip-link" href="#documentContent">Skip to document</a>
@@ -60,7 +60,6 @@
           <div class="metadata" id="metadata"></div>
         </div>
         <div class="heading-actions">
-          <button class="secondary-button" id="copyLinkButton" type="button">Copy link</button>
           <button class="primary-button" id="headerPrintButton" type="button">Print procedure</button>
         </div>
       </div>
@@ -68,11 +67,14 @@
 
     <div class="document-toolbar" aria-label="Document tools">
       <span id="documentStatus"><i class="status-dot"></i>Ready</span>
-      <div>
+      <div class="text-size-controls" aria-label="Document text size">
         <button id="decreaseText" type="button" aria-label="Decrease document text size">A−</button>
+        <output id="textScaleValue" aria-live="polite">100%</output>
         <button id="increaseText" type="button" aria-label="Increase document text size">A+</button>
       </div>
     </div>
+
+    <nav class="procedure-tabs" id="procedureTabs" aria-label="Procedure information" hidden></nav>
 
     <section class="reader" aria-live="polite" aria-busy="false">
       <div class="reader-state" id="readerState">

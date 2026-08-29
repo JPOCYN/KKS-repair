@@ -88,6 +88,21 @@ try {
   const readerHtml = await reader.text();
   assert(reader.status === 200 && readerHtml.includes("Supercar Docs manual reader"), "Modern reader HTML failed");
   assert(readerHtml.includes("Independent content notice"), "Reader disclaimer is missing");
+  assert(readerHtml.includes("reader.css?v=20260829-3"), "Reader stylesheet cache revision is missing");
+  assert(readerHtml.includes("reader.js?v=20260829-3"), "Reader script cache revision is missing");
+  assert(readerHtml.includes('id="procedureTabs"'), "Procedure information tabs are missing");
+  assert(!readerHtml.includes("copyLinkButton"), "Copy-link control should not be rendered");
+  assert(readerHtml.includes('id="textScaleValue"'), "Visible text-scale status is missing");
+
+  const readerCss = await (await request("/modern-manuals/reader.css?v=20260829-3", { headers: authenticatedHeaders })).text();
+  assert(readerCss.includes(".reader-state[hidden] { display: none; }"), "Completed loading state is not hidden");
+  assert(readerCss.includes(".procedure-tabs[hidden] { display: none; }"), "Procedure tabs hidden state is missing");
+  assert(readerCss.includes("position: static !important"), "Legacy absolute-positioned tables are not normalized");
+  assert(readerCss.includes('[style*="font-size" i]'), "Legacy fixed font sizes are not normalized");
+
+  const readerScript = await (await request("/modern-manuals/reader.js?v=20260829-3", { headers: authenticatedHeaders })).text();
+  assert(readerScript.includes("renderProcedureTabs(sourceDocument, pageUrl)"), "Procedure tab rendering is missing");
+  assert(readerScript.includes("changeTextScale(.1)"), "Text-size controls do not use the visible scale step");
 
   const catalogue = await request("/vehicles", { headers: authenticatedHeaders });
   const catalogueHtml = await catalogue.text();
@@ -99,10 +114,14 @@ try {
     const html = await detail.text();
     assert(detail.status === 200, `Vehicle ${id} failed`);
     const readerHref = html.match(/href="(\/modern-manuals\/index\.html\?manual=[^"]+&amp;page=[^"]+)"/)?.[1];
-    const legacyHref = html.match(/href="(\/manuals\/[^"]+\/html\/[^"]+)"/)?.[1];
-    assert(readerHref && legacyHref, `Vehicle ${id} is missing modern or legacy manual links`);
+    assert(readerHref, `Vehicle ${id} is missing its modern manual link`);
+    assert(!html.includes("Legacy fallback"), `Vehicle ${id} still exposes the legacy fallback link`);
     const readerUrl = new URL(decodedAttribute(readerHref), baseUrl);
-    checkedManuals.add(readerUrl.searchParams.get("manual"));
+    const manual = readerUrl.searchParams.get("manual");
+    const page = readerUrl.searchParams.get("page");
+    assert(manual && page, `Vehicle ${id} modern reader URL is incomplete`);
+    checkedManuals.add(manual);
+    const legacyHref = `/manuals/${encodeURIComponent(manual)}/html/${page.split("/").map(encodeURIComponent).join("/")}`;
     const source = await request(legacyHref, { headers: authenticatedHeaders });
     assert(source.status === 200, `Vehicle ${id} first legacy document failed`);
   }
@@ -131,6 +150,10 @@ try {
       "database-and-manual-health",
       "unauthenticated-reader-and-pdfs-blocked",
       "authenticated-reader-assets",
+      "completed-loading-state-hidden",
+      "procedure-information-tabs",
+      "compact-procedure-table-layout",
+      "document-text-scaling",
       "all-visible-vehicles",
       "legacy-fallbacks",
       "small-pdf-range",

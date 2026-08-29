@@ -4,8 +4,12 @@ import type { SessionUser } from "./db.js";
 import {
   adminMembersView,
   adminView,
+  contactView,
   englishOnlyManualMenu,
   landingView,
+  privacyView,
+  registerView,
+  termsView,
   vehicleDetailView,
   vehicleListView,
 } from "./views.js";
@@ -43,10 +47,15 @@ test("customer pages render a modern English-only interface", () => {
   ]);
   assert.match(list, /Vehicle repair library/);
   assert.match(list, /Search by vehicle or model/);
+  assert.match(list, /Vehicle brands/);
+  assert.match(list, /McLaren/);
+  assert.match(list, /Ferrari/);
+  assert.match(list, /Lamborghini/);
+  assert.match(list, /Coming soon/);
   assert.match(detail, /English service sheet/);
   assert.match(detail, /\/modern-manuals\/index\.html\?manual=manual&amp;page=Repair%2F100\.html/);
-  assert.match(detail, /\/manuals\/manual\/html\/Repair\/100\.html/);
-  assert.match(detail, /Legacy fallback/);
+  assert.doesNotMatch(detail, /\/manuals\/manual\/html\/Repair\/100\.html/);
+  assert.doesNotMatch(detail, /Legacy fallback/);
   assert.doesNotMatch(detail, /服務手冊|Hidden descendant/);
   assert.doesNotMatch(`${list}${detail}`, /[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/);
 });
@@ -61,6 +70,24 @@ test("public landing page includes SEO, GEO-friendly answers, future coverage, a
   assert.match(html, /Supercar Docs/);
   assert.match(html, /does not own, represent, endorse, or claim affiliation/);
   assert.match(html, /Member sign in/);
+  assert.match(html, /href="\/privacy"/);
+  assert.match(html, /href="\/terms"/);
+  assert.match(html, /href="\/contact"/);
+});
+
+test("registration and public policy pages provide launch-ready privacy and takedown notices", () => {
+  const registration = registerView();
+  const privacy = privacyView("https://supercardocs.com");
+  const terms = termsView("https://supercardocs.com");
+  const contact = contactView("https://supercardocs.com");
+  assert.match(registration, /name="acceptPolicies"/);
+  assert.match(registration, /Personal Information Collection Statement/);
+  assert.match(privacy, /Data we collect/);
+  assert.match(privacy, /strictly necessary, secure session cookie/);
+  assert.match(terms, /must not republish, redistribute, mirror, bulk-download/);
+  assert.match(contact, /name="requestType"/);
+  assert.match(contact, /Copyright or takedown/);
+  assert.match(contact, /name="website"/);
 });
 
 test("admin views expose quick code creation and member expiry actions", () => {
@@ -79,6 +106,7 @@ test("admin views expose quick code creation and member expiry actions", () => {
     vip_expires_at: "2030-01-01",
   }]);
   assert.match(dashboard, /Generate an access code/);
+  assert.match(dashboard, /Contact requests/);
   assert.match(dashboard, /name="durationHours"/);
   assert.match(members, /\/admin\/members\/7\/extend/);
   assert.match(members, /\+1 year/);

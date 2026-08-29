@@ -168,3 +168,6 @@ The check covers health, direct private-file denial, customer and administrator 
 - Force a password reset after migration. The old application exposed legacy passwords as plaintext to its administrator API.
 - Use a new administrator password that was never used on the former site.
 - Test backups and account access before switching DNS.
+- Public privacy, terms, and contact/takedown pages are available at `/privacy`, `/terms`, and `/contact`.
+- Contact, privacy, and copyright requests are stored in the active database and reviewed at `/admin/requests`.
+- Changing `ADMIN_PASSWORD` rotates the configured administrator password on startup and invalidates that administrator's existing sessions.

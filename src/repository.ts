@@ -32,6 +32,13 @@ export interface CodeInput {
   status: boolean;
 }
 
+export interface ContactRequestInput {
+  name: string;
+  email: string;
+  requestType: "general" | "privacy" | "copyright";
+  message: string;
+}
+
 export interface LoginUser {
   id: number;
   passwordHash: string;
@@ -69,6 +76,9 @@ export interface AppRepository {
   createMember(input: MemberInput & { passwordHash: string }): Promise<void>;
   updateMember(id: number, input: MemberInput): Promise<boolean>;
   extendMemberVip(id: number, days: number): Promise<string | null>;
+  createContactRequest(input: ContactRequestInput): Promise<void>;
+  listContactRequests(): Promise<DataRecord[]>;
+  resolveContactRequest(id: number): Promise<boolean>;
   listCodes(): Promise<DataRecord[]>;
   getCode(id: number): Promise<DataRecord | null>;
   createCode(input: CodeInput): Promise<void>;

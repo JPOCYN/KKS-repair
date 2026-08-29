@@ -252,6 +252,41 @@ h1 { max-width: 940px; margin: 0; font-size: clamp(27px, 3vw, 42px); line-height
 }
 .document-toolbar button { min-width: 34px; padding: 4px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 800; cursor: pointer; }
 .document-toolbar button:hover { background: var(--surface); color: var(--ink); }
+.text-size-controls { display: flex; align-items: center; gap: 3px; }
+.text-size-controls output { min-width: 42px; color: var(--ink); font-size: 10px; font-weight: 800; text-align: center; }
+.procedure-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  width: min(1120px, calc(100% - 48px));
+  margin: 20px auto 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.procedure-tabs[hidden] { display: none; }
+.procedure-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.25;
+  text-decoration: none;
+}
+a.procedure-tab:hover { border-color: var(--accent); background: var(--accent-soft); }
+.procedure-tab.active { border-color: var(--accent); background: var(--accent); color: #18130b; }
+.procedure-tab.unavailable { opacity: .42; cursor: not-allowed; }
+.procedure-tab__icon { display: grid; flex: 0 0 24px; width: 24px; height: 24px; place-items: center; border-radius: 6px; background: color-mix(in srgb, currentColor 9%, transparent); font-size: 13px; font-weight: 900; }
 .reader { width: min(1120px, 100%); min-height: 65vh; padding: 40px clamp(24px, 5vw, 70px) 90px; }
 .reader-footer {
   width: min(1120px, calc(100% - 32px));
@@ -264,6 +299,7 @@ h1 { max-width: 940px; margin: 0; font-size: clamp(27px, 3vw, 42px); line-height
 }
 .reader-footer strong { color: var(--ink); }
 .reader-state { min-height: 430px; display: grid; max-width: 520px; margin: 0 auto; place-items: center; align-content: center; text-align: center; }
+.reader-state[hidden] { display: none; }
 .reader-state .reader-mark { width: 58px; height: 58px; margin-bottom: 15px; border-radius: 14px; font-size: 23px; }
 .reader-state h2 { margin: 0 0 7px; font-size: 22px; }
 .reader-state p { margin: 0; color: var(--muted); font-size: 13px; }
@@ -294,8 +330,10 @@ h1 { max-width: 940px; margin: 0; font-size: clamp(27px, 3vw, 42px); line-height
 .legacy-document img { max-width: 100% !important; height: auto !important; object-fit: contain; }
 .legacy-document .table-scroll { max-width: 100%; margin: 16px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); box-shadow: var(--shadow); }
 .legacy-document .table-scroll > table { margin: 0 !important; border: 0 !important; box-shadow: none; }
-.legacy-document table { width: 100% !important; max-width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; background: var(--paper) !important; color: var(--ink) !important; }
-.legacy-document td, .legacy-document th { min-width: 0 !important; height: auto !important; padding: 10px 12px !important; border: 1px solid var(--line) !important; background: transparent !important; vertical-align: top !important; white-space: normal !important; word-break: normal !important; overflow-wrap: anywhere; }
+.legacy-document table { position: static !important; inset: auto !important; width: 100% !important; max-width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; background: var(--paper) !important; color: var(--ink) !important; font-size: inherit !important; line-height: inherit !important; }
+.legacy-document td, .legacy-document th { min-width: 0 !important; height: auto !important; padding: 10px 12px !important; border: 1px solid var(--line) !important; background: transparent !important; vertical-align: top !important; white-space: normal !important; word-break: normal !important; overflow-wrap: anywhere; font-size: inherit !important; line-height: inherit !important; }
+.legacy-document [style*="font-size" i] { font-size: inherit !important; }
+.legacy-document font[style*="11pt" i] { font-size: 1.15em !important; }
 .legacy-document tr:first-child > td, .legacy-document tr:first-child > th { font-weight: 760; }
 .legacy-document td[bgcolor="#F08A00"], .legacy-document td[bgcolor="#f08a00"] { background: var(--danger-soft) !important; color: var(--danger) !important; }
 .legacy-document td[bgcolor="#F8C028"], .legacy-document td[bgcolor="#f8c028"] { background: var(--accent-soft) !important; }
@@ -346,6 +384,8 @@ h1 { max-width: 940px; margin: 0; font-size: clamp(27px, 3vw, 42px); line-height
   h1 { font-size: clamp(25px, 8vw, 35px); }
   #documentSubtitle { font-size: 13px; }
   .document-toolbar { padding: 0 18px; }
+  .procedure-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); width: calc(100% - 28px); margin-top: 14px; padding: 7px; }
+  .procedure-tab { min-height: 40px; padding: 7px 9px; font-size: 10px; }
   .reader { padding: 27px 16px 65px; }
   .legacy-document { font-size: calc(14px * var(--document-scale)); }
   .legacy-document .table-scroll { margin-inline: -2px; border-radius: 8px; }
@@ -377,7 +417,7 @@ h1 { max-width: 940px; margin: 0; font-size: clamp(27px, 3vw, 42px); line-height
 
 @media print {
   :root { --ink: #111; --muted: #444; --line: #ccc; --paper: #fff; --surface: #fff; }
-  .topbar, .sidebar, .backdrop, .document-toolbar, .heading-actions, .mobile-bar, .reader-footer { display: none !important; }
+  .topbar, .sidebar, .backdrop, .document-toolbar, .procedure-tabs, .heading-actions, .mobile-bar, .reader-footer { display: none !important; }
   body { padding: 18mm 16mm; background: #fff; }
   .page { margin: 0; padding: 0; }
   .document-header { padding: 0 0 18px; }

@@ -63,6 +63,17 @@ export interface AppSessionRow {
   created_at: string;
 }
 
+export interface ContactRequestRow {
+  id: number;
+  name: string;
+  email: string;
+  request_type: "general" | "privacy" | "copyright";
+  message: string;
+  status: "open" | "resolved";
+  created_at: string;
+  resolved_at: string | null;
+}
+
 type TableDefinition<Row, Insert = Row> = {
   Row: Row & Record<string, unknown>;
   Insert: Insert & Record<string, unknown>;
@@ -79,6 +90,7 @@ export type Database = {
       authorization_codes: TableDefinition<AuthorizationCodeRow, Omit<AuthorizationCodeRow, "id"> & { id?: number }>;
       manual_menu: TableDefinition<ManualMenuRow, Omit<ManualMenuRow, "id"> & { id?: number }>;
       app_sessions: TableDefinition<AppSessionRow, Omit<AppSessionRow, "created_at"> & { created_at?: string }>;
+      contact_requests: TableDefinition<ContactRequestRow, Omit<ContactRequestRow, "id" | "created_at" | "resolved_at" | "status"> & { id?: number; created_at?: string; resolved_at?: string | null; status?: "open" | "resolved" }>;
     };
     Views: Record<never, never>;
     Functions: {

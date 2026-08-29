@@ -10,6 +10,7 @@ import {
 import type {
   AppRepository,
   CodeInput,
+  ContactRequestInput,
   DashboardData,
   DataRecord,
   LoginUser,
@@ -174,6 +175,29 @@ export class SqliteRepository implements AppRepository {
         .run(expiresAt, id);
       return expiresAt;
     })();
+  }
+
+  async createContactRequest(input: ContactRequestInput): Promise<void> {
+    this.database.prepare(`
+      INSERT INTO contact_requests (name,email,request_type,message,status)
+      VALUES (?,?,?,?,'open')
+    `).run(input.name, input.email, input.requestType, input.message);
+  }
+
+  async listContactRequests(): Promise<DataRecord[]> {
+    return this.database.prepare(`
+      SELECT id,name,email,request_type,message,status,created_at,resolved_at
+      FROM contact_requests
+      ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC
+    `).all() as DataRecord[];
+  }
+
+  async resolveContactRequest(id: number): Promise<boolean> {
+    const result = this.database.prepare(`
+      UPDATE contact_requests SET status='resolved',resolved_at=CURRENT_TIMESTAMP
+      WHERE id=? AND status='open'
+    `).run(id);
+    return result.changes > 0;
   }
 
   async listCodes(): Promise<DataRecord[]> {

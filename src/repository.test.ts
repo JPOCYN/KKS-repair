@@ -43,8 +43,40 @@ test("SQLite remains the default repository and persists application sessions", 
     const updatedMember = await repository.getMember(Number(member.id));
     assert.equal(updatedMember?.vip_status, 1);
     assert.equal(updatedMember?.vip_expires_at, extended);
+    await repository.createContactRequest({
+      name: "Rights Holder",
+      email: "rights@example.com",
+      requestType: "copyright",
+      message: "Please review the identified service document.",
+    });
+    const [request] = await repository.listContactRequests();
+    assert.equal(request?.request_type, "copyright");
+    assert.equal(request?.status, "open");
+    assert.equal(await repository.resolveContactRequest(Number(request?.id)), true);
+    assert.equal((await repository.listContactRequests())[0]?.status, "resolved");
   } finally {
     await repository.close();
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("configured administrator password changes rotate the credential and invalidate old sessions", async () => {
+  const temporary = mkdtempSync(path.join(os.tmpdir(), "kks-admin-rotation-test-"));
+  const first = await createAppRepository({ DATA_BACKEND: "sqlite", DATA_DIR: temporary, ADMIN_EMAIL: "owner@example.com", ADMIN_PASSWORD: "first-admin-password" });
+  const administrator = await first.findLoginUser("owner@example.com");
+  assert.ok(administrator);
+  const session = await first.createSession(administrator.id);
+  await first.close();
+
+  const second = await createAppRepository({ DATA_BACKEND: "sqlite", DATA_DIR: temporary, ADMIN_EMAIL: "owner@example.com", ADMIN_PASSWORD: "second-admin-password" });
+  try {
+    const rotated = await second.findLoginUser("owner@example.com");
+    assert.ok(rotated);
+    assert.equal(verifyPassword("first-admin-password", rotated.passwordHash), false);
+    assert.equal(verifyPassword("second-admin-password", rotated.passwordHash), true);
+    assert.equal(await second.getSessionUser(session.token), null);
+  } finally {
+    await second.close();
     rmSync(temporary, { recursive: true, force: true });
   }
 });

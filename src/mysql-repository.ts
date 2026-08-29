@@ -7,10 +7,11 @@ import mysql, {
   type ResultSetHeader,
   type RowDataPacket,
 } from "mysql2/promise";
-import { hashPassword } from "./password.js";
+import { hashPassword, verifyPassword } from "./password.js";
 import type {
   AppRepository,
   CodeInput,
+  ContactRequestInput,
   DashboardData,
   DataRecord,
   LoginUser,
@@ -180,6 +181,17 @@ export class MySqlRepository implements AppRepository {
         INDEX sessions_user_id_idx (user_id),
         CONSTRAINT sessions_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      `CREATE TABLE IF NOT EXISTS contact_requests (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        email VARCHAR(254) NOT NULL,
+        request_type ENUM('general','privacy','copyright') NOT NULL,
+        message TEXT NOT NULL,
+        status ENUM('open','resolved') NOT NULL DEFAULT 'open',
+        created_at VARCHAR(64) NOT NULL,
+        resolved_at VARCHAR(64) NULL,
+        INDEX contact_requests_status_created_idx (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
       `CREATE TABLE IF NOT EXISTS app_meta (
         meta_key VARCHAR(100) PRIMARY KEY,
         meta_value VARCHAR(1000) NOT NULL,
@@ -264,8 +276,25 @@ export class MySqlRepository implements AppRepository {
     const email = this.environment.ADMIN_EMAIL?.trim();
     const password = this.environment.ADMIN_PASSWORD;
     if (!email || !password) return;
-    const [rows] = await this.pool.execute<QueryRow[]>("SELECT id FROM users WHERE email=? LIMIT 1", [email]);
-    if (rows.length > 0) return;
+    const [rows] = await this.pool.execute<QueryRow[]>("SELECT id,password_hash FROM users WHERE email=? LIMIT 1", [email]);
+    const existing = rows[0];
+    if (existing) {
+      if (!verifyPassword(password, String(existing.password_hash))) {
+        const connection = await this.pool.getConnection();
+        try {
+          await connection.beginTransaction();
+          await connection.execute("UPDATE users SET password_hash=? WHERE id=?", [hashPassword(password), existing.id]);
+          await connection.execute("DELETE FROM sessions WHERE user_id=?", [existing.id]);
+          await connection.commit();
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        } finally {
+          connection.release();
+        }
+      }
+      return;
+    }
     try {
       await this.pool.execute(
         "INSERT INTO users (email,name,password_hash,status,vip_status,role,created_at) VALUES (?,'Administrator',?,1,1,'admin',?)",
@@ -488,6 +517,30 @@ export class MySqlRepository implements AppRepository {
     } finally {
       connection.release();
     }
+  }
+
+  async createContactRequest(input: ContactRequestInput): Promise<void> {
+    await this.pool.execute(`
+      INSERT INTO contact_requests (name,email,request_type,message,status,created_at)
+      VALUES (?,?,?,?,'open',?)
+    `, [input.name, input.email, input.requestType, input.message, new Date().toISOString()]);
+  }
+
+  async listContactRequests(): Promise<DataRecord[]> {
+    const [rows] = await this.pool.query<QueryRow[]>(`
+      SELECT id,name,email,request_type,message,status,created_at,resolved_at
+      FROM contact_requests
+      ORDER BY FIELD(status,'open','resolved'), created_at DESC
+    `);
+    return asRecords(rows);
+  }
+
+  async resolveContactRequest(id: number): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>(`
+      UPDATE contact_requests SET status='resolved',resolved_at=?
+      WHERE id=? AND status='open'
+    `, [new Date().toISOString(), id]);
+    return result.affectedRows > 0;
   }
 
   async listCodes(): Promise<DataRecord[]> {

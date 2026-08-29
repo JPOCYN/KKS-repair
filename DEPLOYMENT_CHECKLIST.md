@@ -34,6 +34,12 @@ Confirm that the `app` container reports healthy. Test with the server IP or a t
 - Confirm an unauthenticated visitor is redirected to sign in when requesting a manual URL.
 - Create a temporary member and authorization code, then test sign-in and expiry behavior.
 - Restart the stack and confirm the data remains available.
+- Confirm `/privacy`, `/terms`, and `/contact` return 200 and appear in the footer.
+- Submit one test contact request and confirm it appears at `/admin/requests`.
+- Confirm `www.supercardocs.com` redirects permanently to `https://supercardocs.com`.
+- Confirm Content-Security-Policy and Permissions-Policy headers are present.
+- Rotate the administrator password and confirm the previous session is invalidated.
+- Record the latest Hostinger file/database backup time before deployment.
 
 ## 4. Switch the domain
 

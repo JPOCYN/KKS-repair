@@ -19,14 +19,18 @@ import {
 import {
   adminCodeFormView,
   adminCodesView,
+  adminContactRequestsView,
   adminMemberFormView,
   adminMembersView,
   adminVehicleFormView,
   adminVehiclesView,
   adminView,
+  contactView,
   landingView,
   loginView,
+  privacyView,
   registerView,
+  termsView,
   vehicleDetailView,
   vehicleListView,
 } from "./views.js";
@@ -45,7 +49,38 @@ const publicSiteOrigin = (() => {
 if (config.production) app.set("trust proxy", 1);
 
 app.disable("x-powered-by");
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      frameSrc: ["'self'", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      objectSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      workerSrc: ["'self'", "blob:"],
+    },
+  },
+}));
+app.use((_req, res, next) => {
+  res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=(), payment=(), usb=()");
+  next();
+});
+app.use((req, res, next) => {
+  if (config.production) {
+    const canonicalHost = new URL(publicSiteOrigin).hostname.toLowerCase();
+    if (req.hostname.toLowerCase() === `www.${canonicalHost}`) {
+      res.redirect(301, new URL(req.originalUrl, publicSiteOrigin).toString());
+      return;
+    }
+  }
+  next();
+});
 app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 app.use(express.json({ limit: "64kb" }));
 app.use(express.static(config.publicDirectory, { maxAge: config.production ? "7d" : 0 }));
@@ -141,7 +176,17 @@ const registerSchema = z.object({
   name: z.string().trim().min(1).max(120),
   authCode: z.string().trim().min(1).max(100),
   password: z.string().min(10).max(200),
+  acceptPolicies: z.literal("yes"),
 });
+const contactSchema = z.object({
+  requestType: z.enum(["general", "privacy", "copyright"]),
+  name: z.string().trim().min(1).max(120),
+  email: z.email().max(254),
+  message: z.string().trim().min(10).max(5000),
+  confirmAccuracy: z.literal("yes"),
+  website: z.string().max(200).optional().default(""),
+});
+const contactLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
 function manualHealth(): Record<string, unknown> {
   if (config.manualStorage !== "local") return { storage: config.manualStorage, ready: true };
@@ -201,9 +246,29 @@ app.get("/register", (req: AuthenticatedRequest, res) => {
   res.send(registerView());
 });
 
+app.get("/privacy", (_req, res) => res.send(privacyView(publicSiteOrigin)));
+app.get("/terms", (_req, res) => res.send(termsView(publicSiteOrigin)));
+app.get("/contact", (_req, res) => res.send(contactView(publicSiteOrigin)));
+app.post("/contact", contactLimiter, async (req, res) => {
+  const parsed = contactSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).send(contactView(publicSiteOrigin, { error: "Complete all required fields and provide at least 10 characters of detail.", values: req.body }));
+    return;
+  }
+  if (!parsed.data.website) {
+    await repository.createContactRequest({
+      name: parsed.data.name,
+      email: parsed.data.email,
+      requestType: parsed.data.requestType,
+      message: parsed.data.message,
+    });
+  }
+  res.status(201).send(contactView(publicSiteOrigin, { sent: true }));
+});
+
 app.post("/register", loginLimiter, async (req: AuthenticatedRequest, res) => {
   const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).send(registerView("Enter a valid email, name, authorization code, and password of at least 10 characters.", req.body));
+  if (!parsed.success) return res.status(400).send(registerView("Enter valid account details, use a password of at least 10 characters, and accept the Terms and Privacy Statement.", req.body));
 
   try {
     const userId = await repository.registerCustomer({
@@ -262,6 +327,18 @@ app.get("/vehicles/:id", requireUser, async (req: AuthenticatedRequest, res) => 
 
 app.get("/admin", requireAdmin, async (req: AuthenticatedRequest, res) => {
   res.send(adminView(req.sessionUser!, await repository.getDashboard()));
+});
+
+app.get("/admin/requests", requireAdmin, async (req: AuthenticatedRequest, res) => {
+  res.send(adminContactRequestsView(req.sessionUser!, await repository.listContactRequests(), req.query.updated === "1"));
+});
+
+app.post("/admin/requests/:id/resolve", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(404).send("Not found");
+  const updated = await repository.resolveContactRequest(id);
+  if (!updated) return res.status(404).send("Not found");
+  res.redirect("/admin/requests?updated=1");
 });
 
 const vehicleSchema = z.object({

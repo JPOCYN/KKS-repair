@@ -16,6 +16,7 @@
     metadata: document.getElementById("metadata"),
     breadcrumbs: document.getElementById("breadcrumbs"),
     documentStatus: document.getElementById("documentStatus"),
+    procedureTabs: document.getElementById("procedureTabs"),
     documentContent: document.getElementById("documentContent"),
     reader: document.querySelector(".reader"),
     readerState: document.getElementById("readerState"),
@@ -27,9 +28,9 @@
       document.getElementById("headerPrintButton"),
       document.getElementById("mobilePrint"),
     ],
-    copyLinkButton: document.getElementById("copyLinkButton"),
     increaseText: document.getElementById("increaseText"),
     decreaseText: document.getElementById("decreaseText"),
+    textScaleValue: document.getElementById("textScaleValue"),
     mobileTop: document.getElementById("mobileTop"),
   };
 
@@ -46,6 +47,14 @@
 
   const pagePattern = /^(Repair|System|Wiring)\/[A-Za-z0-9._-]+\.html$/;
   const eventAttributes = /^on/i;
+  const procedureTabDefinitions = [
+    { legacyId: "RI_SPECIAL_ADVICE", label: "Special advice", icon: "!" },
+    { legacyId: "RI_TOOLS_EQUIPMENT", label: "Tools / Equipment", icon: "⌘" },
+    { legacyId: "RI_FLUIDS_LUB_ADH", label: "Fluids & lubricants", icon: "●" },
+    { legacyId: "RI_TORQUE_SETTINGS", label: "Torque settings", icon: "↻" },
+    { legacyId: "RI_REPAIR_TIME", label: "Repair time", icon: "◷" },
+    { legacyId: "RI_INSTRUCTIONS", label: "Instructions", icon: "≡" },
+  ];
 
   function setMenu(open) {
     elements.body.classList.toggle("menu-open", open);
@@ -55,6 +64,7 @@
 
   function setReaderState(kind, title, message) {
     elements.reader.setAttribute("aria-busy", String(kind === "loading"));
+    elements.procedureTabs.hidden = true;
     elements.readerState.hidden = false;
     elements.documentContent.hidden = true;
     elements.readerState.className = `reader-state ${kind === "error" ? "error" : ""}`;
@@ -295,6 +305,60 @@
     return isValidPage(relative) ? relative : null;
   }
 
+  function renderProcedureTabs(sourceDocument, pageUrl) {
+    const legacyToolbar = sourceDocument.querySelector("#RI");
+    elements.procedureTabs.replaceChildren();
+    if (!legacyToolbar) {
+      elements.procedureTabs.hidden = true;
+      return;
+    }
+
+    const sourceBase = sourceDocument.querySelector("base")?.getAttribute("href") || "./";
+    const assetBase = new URL(sourceBase, pageUrl);
+
+    for (const definition of procedureTabDefinitions) {
+      const legacyControl = legacyToolbar.querySelector(`[id$="${definition.legacyId}"]`);
+      if (!legacyControl) continue;
+
+      const legacyId = legacyControl.id || "";
+      const active = legacyId.startsWith("down");
+      const explicitlyDisabled = legacyId.startsWith("dis") || legacyControl.tagName !== "A";
+      let targetPage = active ? state.currentPage : null;
+
+      if (!active && legacyControl.tagName === "A") {
+        const href = legacyControl.getAttribute("href") || "";
+        if (href && !/^javascript:/i.test(href)) {
+          try { targetPage = relativeManualPage(new URL(href, assetBase)); } catch {}
+        }
+      }
+
+      const available = active || (!explicitlyDisabled && targetPage);
+      const tab = available && !active ? document.createElement("a") : document.createElement("span");
+      tab.className = `procedure-tab${active ? " active" : ""}${available ? "" : " unavailable"}`;
+
+      if (tab instanceof HTMLAnchorElement) {
+        tab.href = readerUrl(state.manual, targetPage).href;
+        tab.dataset.readerPage = targetPage;
+      } else if (active) {
+        tab.setAttribute("aria-current", "page");
+      } else {
+        tab.setAttribute("aria-disabled", "true");
+        tab.title = "Not available in the recovered source";
+      }
+
+      const icon = document.createElement("span");
+      icon.className = "procedure-tab__icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = definition.icon;
+      const label = document.createElement("span");
+      label.textContent = definition.label;
+      tab.append(icon, label);
+      elements.procedureTabs.append(tab);
+    }
+
+    elements.procedureTabs.hidden = !elements.procedureTabs.childElementCount;
+  }
+
   function sanitizeRecoveredContent(sourceDocument, pageUrl) {
     const sourceBase = sourceDocument.querySelector("base")?.getAttribute("href") || "./";
     const assetBase = new URL(sourceBase, pageUrl);
@@ -431,6 +495,7 @@
       if (!response.ok) throw new Error(`Document returned ${response.status}`);
       const html = await response.text();
       const sourceDocument = new DOMParser().parseFromString(html, "text/html");
+      renderProcedureTabs(sourceDocument, pageUrl);
       const recoveredContent = sanitizeRecoveredContent(sourceDocument, pageUrl);
 
       elements.documentContent.replaceChildren(...recoveredContent.childNodes);
@@ -464,8 +529,8 @@
 
     const theme = savedTheme === "dark" || savedTheme === "light" ? savedTheme : "light";
     document.documentElement.dataset.theme = theme;
-    if (savedScale >= .85 && savedScale <= 1.3) state.textScale = savedScale;
-    document.documentElement.style.setProperty("--document-scale", state.textScale);
+    if (savedScale >= .8 && savedScale <= 1.4) state.textScale = savedScale;
+    applyTextScale();
   }
 
   function changeTheme() {
@@ -476,19 +541,14 @@
   }
 
   function changeTextScale(change) {
-    state.textScale = Math.max(.85, Math.min(1.3, Math.round((state.textScale + change) * 20) / 20));
-    document.documentElement.style.setProperty("--document-scale", state.textScale);
+    state.textScale = Math.max(.8, Math.min(1.4, Math.round((state.textScale + change) * 10) / 10));
+    applyTextScale();
     try { localStorage.setItem("kks-reader-scale", state.textScale); } catch {}
   }
 
-  async function copyCurrentLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      elements.copyLinkButton.textContent = "Link copied";
-    } catch {
-      elements.copyLinkButton.textContent = "Copy unavailable";
-    }
-    window.setTimeout(() => { elements.copyLinkButton.textContent = "Copy link"; }, 1800);
+  function applyTextScale() {
+    document.documentElement.style.setProperty("--document-scale", state.textScale);
+    elements.textScaleValue.textContent = `${Math.round(state.textScale * 100)}%`;
   }
 
   function bindEvents() {
@@ -499,9 +559,8 @@
     elements.mobileTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
     elements.themeButton.addEventListener("click", changeTheme);
     elements.printButtons.forEach((button) => button.addEventListener("click", () => window.print()));
-    elements.copyLinkButton.addEventListener("click", copyCurrentLink);
-    elements.increaseText.addEventListener("click", () => changeTextScale(.05));
-    elements.decreaseText.addEventListener("click", () => changeTextScale(-.05));
+    elements.increaseText.addEventListener("click", () => changeTextScale(.1));
+    elements.decreaseText.addEventListener("click", () => changeTextScale(-.1));
 
     elements.manualSelect.addEventListener("change", () => {
       const manual = state.catalog.manuals.find((candidate) => candidate.folder === elements.manualSelect.value);
@@ -519,6 +578,13 @@
     });
 
     elements.documentContent.addEventListener("click", (event) => {
+      const link = event.target.closest("[data-reader-page]");
+      if (!link) return;
+      event.preventDefault();
+      loadPage(link.dataset.readerPage, { focus: true });
+    });
+
+    elements.procedureTabs.addEventListener("click", (event) => {
       const link = event.target.closest("[data-reader-page]");
       if (!link) return;
       event.preventDefault();

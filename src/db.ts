@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { hashPassword } from "./password.js";
+import { hashPassword, verifyPassword } from "./password.js";
 import { findPersistentPrivateDirectory } from "./persistent-storage.js";
 import { SqlJsDatabase } from "./sqlite.js";
 
@@ -144,8 +144,20 @@ export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env)
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS contact_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      request_type TEXT NOT NULL CHECK(request_type IN ('general','privacy','copyright')),
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS manual_menu_car_id_idx ON manual_menu(car_id);
+    CREATE INDEX IF NOT EXISTS contact_requests_status_created_idx ON contact_requests(status, created_at DESC);
   `);
 
   const codeColumns = db.prepare("PRAGMA table_info(authorization_codes)").all() as Array<{ name: string }>;
@@ -235,8 +247,16 @@ function ensureConfiguredAdmin(db: AppDatabase, environment: NodeJS.ProcessEnv =
   const email = environment.ADMIN_EMAIL?.trim();
   const password = environment.ADMIN_PASSWORD;
   if (!email || !password) return;
-  const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-  if (existing) return;
+  const existing = db.prepare("SELECT id,password_hash FROM users WHERE email = ?").get(email) as { id: number; password_hash: string } | undefined;
+  if (existing) {
+    if (!verifyPassword(password, existing.password_hash)) {
+      db.transaction(() => {
+        db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(hashPassword(password), existing.id);
+        db.prepare("DELETE FROM sessions WHERE user_id=?").run(existing.id);
+      })();
+    }
+    return;
+  }
   db.prepare(`
     INSERT INTO users (email, name, password_hash, status, vip_status, role)
     VALUES (?, 'Administrator', ?, 1, 1, 'admin')

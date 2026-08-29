@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { hashPassword } from "./password.js";
+import { hashPassword, verifyPassword } from "./password.js";
 import type {
   AppRepository,
   CodeInput,
+  ContactRequestInput,
   DashboardData,
   DataRecord,
   LoginUser,
@@ -63,9 +64,17 @@ export class SupabaseRepository implements AppRepository {
     const email = this.environment.ADMIN_EMAIL?.trim();
     const password = this.environment.ADMIN_PASSWORD;
     if (!email || !password) return;
-    const { data, error } = await this.client.from("app_users").select("id").eq("email", email).maybeSingle();
+    const { data, error } = await this.client.from("app_users").select("id,password_hash").eq("email", email).maybeSingle();
     assertNoError(error, "Cannot check configured administrator");
-    if (data) return;
+    if (data) {
+      if (!verifyPassword(password, data.password_hash)) {
+        const updated = await this.client.from("app_users").update({ password_hash: hashPassword(password) }).eq("id", data.id);
+        assertNoError(updated.error, "Cannot rotate configured administrator password");
+        const sessions = await this.client.from("app_sessions").delete().eq("user_id", data.id);
+        assertNoError(sessions.error, "Cannot invalidate administrator sessions");
+      }
+      return;
+    }
     const created = await this.client.from("app_users").insert({
       email,
       name: "Administrator",
@@ -343,6 +352,34 @@ export class SupabaseRepository implements AppRepository {
     }).eq("id", id).eq("role", "customer").select("id").maybeSingle();
     assertNoError(error, "Cannot extend member VIP access");
     return data ? expiresAt : null;
+  }
+
+  async createContactRequest(input: ContactRequestInput): Promise<void> {
+    const { error } = await this.client.from("contact_requests").insert({
+      name: input.name,
+      email: input.email,
+      request_type: input.requestType,
+      message: input.message,
+    });
+    assertNoError(error, "Cannot create contact request");
+  }
+
+  async listContactRequests(): Promise<DataRecord[]> {
+    const rows = await collectPages((from, to) => this.client.from("contact_requests")
+      .select("id,name,email,request_type,message,status,created_at,resolved_at")
+      .order("status", { ascending: true })
+      .order("created_at", { ascending: false })
+      .range(from, to));
+    return rows as unknown as DataRecord[];
+  }
+
+  async resolveContactRequest(id: number): Promise<boolean> {
+    const { data, error } = await this.client.from("contact_requests").update({
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+    }).eq("id", id).eq("status", "open").select("id").maybeSingle();
+    assertNoError(error, "Cannot resolve contact request");
+    return Boolean(data);
   }
 
   async listCodes(): Promise<DataRecord[]> {
