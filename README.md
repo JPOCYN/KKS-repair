@@ -72,6 +72,8 @@ Progress reports are written to `recovery/manual-download-report.json` and `reco
 
 The included archive has completed both recovery commands. The final linked-resource audit processed 126,471 URLs: 105,747 successful URL entries mapped to 105,742 physical files, 20,724 references were confirmed as 404 on the former vendor site, and zero requests remained failed. Run `npm run verify:recovery` after copying the project to verify the database-to-file links and detect partial downloads.
 
+For hosting platforms that cannot efficiently upload 105,742 individual manual files, run `npm run build:manual-bundle`. The app serves `private-transfer/manuals.bundle` using `private-transfer/manuals-index.json` when `MANUAL_BUNDLE_PATH` and `MANUAL_INDEX_PATH` point to those private files. Bundle requests remain protected by application sign-in and support HTTP byte ranges.
+
 ## Security notes
 
 - Never commit `.env`, `data`, `manuals`, HAR files, or raw recovery JSON to a public repository.

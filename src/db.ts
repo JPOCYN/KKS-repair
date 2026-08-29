@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import Database from "better-sqlite3";
 import { hashPassword } from "./password.js";
+import { SqlJsDatabase } from "./sqlite.js";
 
-export type AppDatabase = Database.Database;
+export type AppDatabase = SqlJsDatabase;
 
 export interface SessionUser {
   id: number;
@@ -69,7 +69,7 @@ function readJson<T>(file: string): T {
 export function initializeDatabase(): AppDatabase {
   const dataDirectory = path.resolve(process.env.DATA_DIR || "data");
   mkdirSync(dataDirectory, { recursive: true });
-  const db = new Database(path.join(dataDirectory, "kks-repair.db"));
+  const db = new SqlJsDatabase(path.join(dataDirectory, "kks-repair.db"));
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(`

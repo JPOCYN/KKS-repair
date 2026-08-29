@@ -7,5 +7,6 @@ data/
 !.env.example
 recovery/private/
 manuals/
+private-transfer/
 *.har
 *.log

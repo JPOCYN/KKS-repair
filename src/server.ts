@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
@@ -11,6 +12,7 @@ import {
   type SessionUser,
 } from "./db.js";
 import { hashPassword, verifyPassword } from "./password.js";
+import { createManualBundleHandler } from "./manual-bundle.js";
 import {
   adminCodeFormView,
   adminCodesView,
@@ -85,7 +87,16 @@ function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunctio
 }
 
 app.use(sessionMiddleware);
-app.use("/manuals", requireUser, express.static("manuals", { fallthrough: false, maxAge: production ? "1d" : 0 }));
+const manualsDirectory = path.resolve(process.env.MANUALS_DIR || "manuals");
+const manualBundleFile = path.resolve(process.env.MANUAL_BUNDLE_PATH || "private-data/manuals.bundle");
+const manualIndexFile = path.resolve(process.env.MANUAL_INDEX_PATH || "private-data/manuals-index.json");
+app.use(
+  "/manuals",
+  requireUser,
+  express.static(manualsDirectory, { fallthrough: true, maxAge: production ? "1d" : 0 }),
+  createManualBundleHandler(manualBundleFile, manualIndexFile),
+  (_req, res) => res.status(404).send("Manual file not found"),
+);
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
   const expectedOrigin = process.env.PUBLIC_ORIGIN;
