@@ -48,6 +48,36 @@ test("serves byte ranges from a version 2 bundle part", async () => {
   }
 });
 
+test("serves protected PDF bundle entries with range headers and the PDF content type", async () => {
+  const temporary = mkdtempSync(path.join(os.tmpdir(), "kks-bundle-pdf-"));
+  const partFile = path.join(temporary, "manuals-pdfs.bundle.000");
+  const indexFile = path.join(temporary, "manuals-index.json");
+  const bytes = Buffer.from("%PDF-1.7\nprotected-pdf-test\n%%EOF");
+  writeFileSync(partFile, bytes);
+  writeFileSync(indexFile, JSON.stringify({
+    version: 2,
+    parts: [{ file: "manuals-pdfs.bundle.000", length: bytes.length }],
+    files: { "pdfs/Test-Manual/Repair/graphics/en/large.pdf": { part: 0, offset: 0, length: bytes.length } },
+  }));
+  const app = express();
+  app.use(createManualBundleHandler(path.join(temporary, "manuals.bundle"), indexFile));
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not bind to a TCP port");
+    const response = await fetch(`http://127.0.0.1:${address.port}/pdfs/Test-Manual/Repair/graphics/en/large.pdf`, { headers: { Range: "bytes=0-7" } });
+    assert.equal(response.status, 206);
+    assert.equal(response.headers.get("content-type"), "application/pdf");
+    assert.equal(response.headers.get("accept-ranges"), "bytes");
+    assert.equal(response.headers.get("content-range"), `bytes 0-7/${bytes.length}`);
+    assert.equal(await response.text(), "%PDF-1.7");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test("proxies authenticated byte ranges from private HTTP storage", async () => {
   const bytes = Buffer.from("hello-world");
   const storage = express();

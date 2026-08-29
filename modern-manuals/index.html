@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Protected Supercar Docs responsive service manual reader">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#101318">
+  <title>Supercar Docs — Service Manual Reader</title>
+  <link rel="stylesheet" href="./reader.css">
+  <script src="./reader.js" defer></script>
+</head>
+<body data-catalog="./catalog.json" data-manuals-base="../manuals/">
+  <a class="skip-link" href="#documentContent">Skip to document</a>
+
+  <header class="topbar">
+    <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Open manual contents" aria-expanded="false">☰</button>
+    <a class="brand" href="./index.html" aria-label="Supercar Docs manual library">
+      <span class="brand-mark">S</span>
+      <span class="brand-copy"><strong>Supercar Docs</strong><small>Workshop intelligence</small></span>
+    </a>
+    <div class="topbar-context">
+      <span id="topVehicle">Service library</span><span aria-hidden="true">/</span><strong id="topDocument">Choose a document</strong>
+    </div>
+    <div class="topbar-actions">
+      <a class="library-link" href="/vehicles">Vehicle library</a>
+      <button class="icon-button" id="printButton" type="button" aria-label="Print document" title="Print">▤</button>
+      <button class="icon-button" id="themeButton" type="button" aria-label="Switch to dark mode" title="Change theme">◐</button>
+    </div>
+  </header>
+
+  <aside class="sidebar" id="sidebar" aria-label="Manual contents">
+    <div class="sidebar-head">
+      <label class="field-label" for="manualSelect">Vehicle manual</label>
+      <select id="manualSelect" aria-label="Choose vehicle manual"></select>
+      <div class="manual-summary">
+        <span><i class="status-dot"></i>Available</span>
+        <strong id="documentCount">—</strong>
+      </div>
+      <label class="search">
+        <span aria-hidden="true">⌕</span>
+        <input id="manualSearch" type="search" placeholder="Search this manual" autocomplete="off" aria-label="Search this manual">
+      </label>
+    </div>
+    <nav class="manual-tree" id="manualTree" aria-label="Document navigation">
+      <div class="tree-loading"><span class="spinner"></span><p>Loading manual index…</p></div>
+    </nav>
+    <div class="sidebar-foot"><span>SUPERCAR DOCS</span><span>EN</span></div>
+  </aside>
+  <button class="backdrop" id="backdrop" type="button" aria-label="Close manual contents"></button>
+
+  <main class="page" id="main">
+    <header class="document-header">
+      <nav class="breadcrumbs" id="breadcrumbs" aria-label="Breadcrumb"><span>Service manual</span></nav>
+      <div class="heading-row">
+        <div>
+          <span class="document-type" id="documentType">Technical information</span>
+          <h1 id="documentTitle">Choose a service document</h1>
+          <p id="documentSubtitle">Select a procedure from the contents to open the modern reader.</p>
+          <div class="metadata" id="metadata"></div>
+        </div>
+        <div class="heading-actions">
+          <button class="secondary-button" id="copyLinkButton" type="button">Copy link</button>
+          <button class="primary-button" id="headerPrintButton" type="button">Print procedure</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="document-toolbar" aria-label="Document tools">
+      <span id="documentStatus"><i class="status-dot"></i>Ready</span>
+      <div>
+        <button id="decreaseText" type="button" aria-label="Decrease document text size">A−</button>
+        <button id="increaseText" type="button" aria-label="Increase document text size">A+</button>
+      </div>
+    </div>
+
+    <section class="reader" aria-live="polite" aria-busy="false">
+      <div class="reader-state" id="readerState">
+        <span class="reader-mark">S</span>
+        <h2>Supercar Docs manual reader</h2>
+        <p>Choose a vehicle and procedure from the contents.</p>
+      </div>
+      <article class="legacy-document" id="documentContent" tabindex="-1" hidden></article>
+    </section>
+    <footer class="reader-footer"><strong>Independent content notice:</strong> Information is collected from publicly available online sources for reference. Supercar Docs does not own, represent, endorse, or claim affiliation with any vehicle manufacturer or brand. All trademarks and documents belong to their respective owners.</footer>
+  </main>
+
+  <nav class="mobile-bar" aria-label="Mobile quick actions">
+    <button id="mobileContents" type="button"><b>☰</b><span>Contents</span></button>
+    <button id="mobileTop" type="button"><b>↑</b><span>Top</span></button>
+    <button id="mobilePrint" type="button"><b>▤</b><span>Print</span></button>
+  </nav>
+</body>
+</html>

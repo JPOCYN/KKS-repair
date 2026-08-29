@@ -4,6 +4,10 @@ import path from "node:path";
 
 const argument = (name, fallback) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
 const sourceDirectory = path.resolve(argument("source", "manuals"));
+const extraSourceDirectory = argument("extra-source", "") ? path.resolve(argument("extra-source", "")) : null;
+const extraPrefix = argument("extra-prefix", "pdfs").replace(/^\/+|\/+$/g, "");
+const allowIndexSuperset = argument("allow-index-superset", "false") === "true";
+const requestedSamples = process.argv.filter((value) => value.startsWith("--sample=")).map((value) => value.slice(9));
 const bundleFile = path.resolve(argument("bundle", "private-transfer/manuals.bundle"));
 const indexFile = path.resolve(argument("index", "private-transfer/manuals-index.json"));
 
@@ -38,28 +42,41 @@ for (let partNumber = 0; partNumber < parts.length; partNumber += 1) {
   if (expectedOffsets[partNumber] !== parts[partNumber].length) throw new Error(`Bundle part size mismatch: ${partNumber}`);
 }
 const bundleBytes = parts.reduce((total, part) => total + part.length, 0);
+const entriesByName = new Map(entries.map((entry) => [entry.name, entry]));
 
 const sourceFiles = new Map();
-if (existsSync(sourceDirectory)) {
-  const pending = [sourceDirectory];
+function collectSource(rootDirectory, prefix = "") {
+  const pending = [rootDirectory];
   while (pending.length > 0) {
-    const directory = pending.pop();
-    for (const item of readdirSync(directory, { withFileTypes: true })) {
-      const target = path.join(directory, item.name);
+    const currentDirectory = pending.pop();
+    for (const item of readdirSync(currentDirectory, { withFileTypes: true })) {
+      const target = path.join(currentDirectory, item.name);
       if (item.isDirectory()) pending.push(target);
       else if (item.isFile() && !item.name.endsWith(".part")) {
-        sourceFiles.set(path.relative(sourceDirectory, target).split(path.sep).join("/"), statSync(target).size);
+        const relative = path.relative(rootDirectory, target).split(path.sep).join("/");
+        sourceFiles.set(prefix ? `${prefix}/${relative}` : relative, statSync(target).size);
       }
     }
   }
-  if (sourceFiles.size !== entries.length) throw new Error(`File count mismatch: source=${sourceFiles.size}, index=${entries.length}`);
-  for (const entry of entries) {
-    if (sourceFiles.get(entry.name) !== entry.length) throw new Error(`Source size mismatch: ${entry.name}`);
+}
+if (existsSync(sourceDirectory)) {
+  collectSource(sourceDirectory);
+  if (extraSourceDirectory) {
+    if (!existsSync(extraSourceDirectory)) throw new Error(`Extra source directory is missing: ${extraSourceDirectory}`);
+    collectSource(extraSourceDirectory, extraPrefix);
+  }
+  if (!allowIndexSuperset && sourceFiles.size !== entries.length) throw new Error(`File count mismatch: source=${sourceFiles.size}, index=${entries.length}`);
+  for (const [name, length] of sourceFiles) {
+    if (entriesByName.get(name)?.length !== length) throw new Error(`Source size mismatch: ${name}`);
   }
 }
 
 function hashSource(name) {
-  return createHash("sha256").update(readFileSync(path.join(sourceDirectory, ...name.split("/")))).digest("hex");
+  const extraMarker = `${extraPrefix}/`;
+  const file = extraSourceDirectory && name.startsWith(extraMarker)
+    ? path.join(extraSourceDirectory, ...name.slice(extraMarker.length).split("/"))
+    : path.join(sourceDirectory, ...name.split("/"));
+  return createHash("sha256").update(readFileSync(file)).digest("hex");
 }
 
 function hashBundle(entry) {
@@ -80,11 +97,15 @@ function hashBundle(entry) {
   return hash.digest("hex");
 }
 
-const candidates = [entries[0], entries[Math.floor(entries.length / 2)], entries.at(-1), entries.reduce((largest, entry) => entry.length > largest.length ? entry : largest, entries[0])];
+const candidates = [entries[0], entries[Math.floor(entries.length / 2)], entries.at(-1), entries.reduce((largest, entry) => entry.length > largest.length ? entry : largest, entries[0]), ...requestedSamples.map((name) => {
+  const entry = entriesByName.get(name);
+  if (!entry) throw new Error(`Requested sample is not indexed: ${name}`);
+  return entry;
+})];
 const samples = [];
 for (const entry of new Map(candidates.filter(Boolean).map((entry) => [entry.name, entry])).values()) {
   const bundleSha256 = hashBundle(entry);
-  const sourceSha256 = sourceFiles.size > 0 ? hashSource(entry.name) : null;
+  const sourceSha256 = sourceFiles.has(entry.name) ? hashSource(entry.name) : null;
   if (sourceSha256 && sourceSha256 !== bundleSha256) throw new Error(`Bundle content mismatch: ${entry.name}`);
   samples.push({ path: entry.name, bytes: entry.length, sha256: bundleSha256 });
 }

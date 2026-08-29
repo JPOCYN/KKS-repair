@@ -112,6 +112,12 @@ function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunctio
 
 app.use(recoveredDatabaseMiddleware);
 app.use(sessionMiddleware);
+app.use("/modern-manuals/pdfs", requireUser, (_req, res) => res.status(404).send("Manual file not found"));
+app.use("/modern-manuals", requireUser, express.static(config.modernManualsDirectory, {
+  fallthrough: true,
+  index: "index.html",
+  maxAge: config.production ? "7d" : 0,
+}), (_req, res) => res.status(404).send("Reader file not found"));
 app.use("/manuals", requireUser, await createManualStorageHandler(config));
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
@@ -169,14 +175,16 @@ function manualHealth(): Record<string, unknown> {
 app.get("/health", async (_req, res) => {
   try {
     await repository.health();
-    res.json({ status: "ok", database: "connected", backend: repository.backend, manuals: manualHealth() });
+    const readerFiles = ["index.html", "reader.css", "reader.js", "catalog.json"];
+    const readerReady = readerFiles.every((file) => existsSync(path.join(config.modernManualsDirectory, file)));
+    res.json({ status: "ok", database: "connected", backend: repository.backend, manuals: manualHealth(), modernReader: { ready: readerReady } });
   } catch {
     res.status(503).json({ status: "error", database: "unavailable", backend: repository.backend });
   }
 });
 
 app.get("/robots.txt", (_req, res) => {
-  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vehicles\nDisallow: /manuals\nDisallow: /login\nDisallow: /register\nSitemap: ${publicSiteOrigin}/sitemap.xml\n`);
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vehicles\nDisallow: /manuals\nDisallow: /modern-manuals\nDisallow: /login\nDisallow: /register\nSitemap: ${publicSiteOrigin}/sitemap.xml\n`);
 });
 
 app.get("/sitemap.xml", (_req, res) => {
@@ -450,7 +458,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).send("Internal server error");
 });
 
-const server = app.listen(config.port, () => console.log(`KKS Repair listening on http://localhost:${config.port}`));
+const server = app.listen(config.port, () => console.log(`Supercar Docs listening on http://localhost:${config.port}`));
 
 function shutdown(): void {
   server.close(() => {

@@ -19,9 +19,11 @@
     "recover:manual-assets": "node scripts/recover-manual-assets.mjs --concurrency=20 --max-gb=24",
     "build:manual-bundle": "node scripts/build-manual-bundle.mjs",
     "shard:manual-bundle": "node scripts/shard-manual-bundle.mjs",
+    "extend:manual-bundle": "node scripts/extend-manual-bundle.mjs",
     "verify:manual-bundle": "node scripts/verify-manual-bundle.mjs",
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "verify:admin": "node scripts/verify-admin-local.mjs",
+    "verify:modern-reader": "node scripts/verify-modern-reader-local.mjs",
     "verify:recovery": "node scripts/verify-recovery.mjs",
     "test": "node --import tsx --test src/**/*.test.ts"
   },

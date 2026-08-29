@@ -12,6 +12,7 @@ test("loads Hostinger-first defaults with absolute storage paths", () => {
   assert.equal(config.production, false);
   assert.equal(config.manualStorage, "local");
   assert.equal(config.publicDirectory, path.join(root, "public"));
+  assert.equal(config.modernManualsDirectory, path.join(root, "modern-manuals"));
   assert.equal(config.manualBundleFile, path.join(root, "private-data", "manuals.bundle"));
 });
 

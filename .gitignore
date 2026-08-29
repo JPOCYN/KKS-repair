@@ -9,5 +9,9 @@ recovery/private/
 manuals/
 private-transfer/
 output/
+tmp/
 *.har
 *.log
+modern-manuals/pdfs/
+modern-manuals-complete.zip
+modern-manuals-upload.zip

@@ -64,6 +64,8 @@ try {
   assert(landingHtml.includes("FAQPage") && landingHtml.includes("Independent content notice"), "Landing SEO or disclaimer is missing");
   assert((await request("/robots.txt")).status === 200, "robots.txt failed");
   assert((await request("/sitemap.xml")).status === 200, "sitemap.xml failed");
+  const privateReader = await request("/modern-manuals/index.html");
+  assert(privateReader.status === 302 && privateReader.headers.get("location") === "/login", "Modern reader is not protected");
 
   const login = await form("/login", "", { email: adminEmail, password: adminPassword });
   assert(login.status === 302 && login.headers.get("location") === "/admin", "Admin login failed");
@@ -73,6 +75,13 @@ try {
   const dashboardHtml = await dashboard.text();
   const csrf = dashboardHtml.match(/name="_csrf" value="([^"]+)"/)?.[1];
   assert(dashboard.status === 200 && csrf, "Admin dashboard or CSRF token failed");
+  const reader = await request("/modern-manuals/index.html", { headers: { Cookie: cookie } });
+  const readerHtml = await reader.text();
+  const readerScript = await (await request("/modern-manuals/reader.js", { headers: { Cookie: cookie } })).text();
+  const readerCatalog = await request("/modern-manuals/catalog.json", { headers: { Cookie: cookie } });
+  assert(reader.status === 200 && readerHtml.includes("Supercar Docs manual reader"), "Authenticated modern reader failed");
+  assert(readerCatalog.status === 200, "Authenticated modern reader catalog failed");
+  assert(readerScript.includes("new URL(`pdfs/${path}`, manualsBaseUrl())"), "PDF URLs do not use the protected manual endpoint");
 
   const codeCreated = await form("/admin/codes", cookie, {
     _csrf: csrf,
@@ -163,6 +172,7 @@ try {
       "robots-and-sitemap",
       "admin-login",
       "admin-dashboard",
+      "protected-modern-reader",
       "code-create-and-update",
       "member-create-update-and-extend",
       "vehicle-create-and-update",

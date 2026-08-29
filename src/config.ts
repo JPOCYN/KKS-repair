@@ -8,6 +8,7 @@ export interface AppConfig {
   port: number | string;
   production: boolean;
   publicDirectory: string;
+  modernManualsDirectory: string;
   manualsDirectory: string;
   manualBundleFile: string;
   manualIndexFile: string;
@@ -59,6 +60,7 @@ export function loadAppConfig(
     port: parsePort(environment.PORT),
     production: environment.NODE_ENV === "production",
     publicDirectory: path.resolve(workingDirectory, environment.PUBLIC_DIR || "public"),
+    modernManualsDirectory: path.resolve(workingDirectory, environment.MODERN_MANUALS_DIR || "modern-manuals"),
     manualsDirectory: path.resolve(workingDirectory, environment.MANUALS_DIR || "manuals"),
     manualBundleFile,
     manualIndexFile,
