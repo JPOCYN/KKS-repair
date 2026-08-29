@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { loadAppConfig } from "./config.js";
@@ -25,4 +27,19 @@ test("preserves future storage configuration and rejects unknown values", () => 
   assert.equal(config.manualStorage, "supabase");
   assert.equal(config.manualBundleFile, path.resolve("D:/private/manuals.bundle"));
   assert.throws(() => loadAppConfig({ MANUAL_STORAGE: "public" }), /MANUAL_STORAGE/);
+});
+
+test("finds Hostinger manual files beside the recovered database", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "kks-config-"));
+  try {
+    const dataDirectory = path.join(root, "public_html", "private-data", "recovered");
+    mkdirSync(dataDirectory, { recursive: true });
+    writeFileSync(path.join(root, "public_html", "private-data", "manuals-index.json"), "{}");
+
+    const config = loadAppConfig({ DATA_DIR: dataDirectory }, path.join(root, "node-build"));
+    assert.equal(config.manualIndexFile, path.join(root, "public_html", "private-data", "manuals-index.json"));
+    assert.equal(config.manualBundleFile, path.join(root, "public_html", "private-data", "manuals.bundle"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

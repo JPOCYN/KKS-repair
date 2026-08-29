@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 export type ManualStorage = "local" | "supabase";
@@ -28,13 +29,33 @@ export function loadAppConfig(
   environment: NodeJS.ProcessEnv = process.env,
   workingDirectory = process.cwd(),
 ): AppConfig {
+  const requestedManualBundle = path.resolve(workingDirectory, environment.MANUAL_BUNDLE_PATH || "private-data/manuals.bundle");
+  const requestedManualIndex = path.resolve(workingDirectory, environment.MANUAL_INDEX_PATH || "private-data/manuals-index.json");
+  let manualBundleFile = requestedManualBundle;
+  let manualIndexFile = requestedManualIndex;
+
+  // Hostinger runs Node.js builds outside public_html while persistent files stay
+  // beside the recovered database. Use that known data location when a relative
+  // manual path points into the ephemeral build directory.
+  if (!existsSync(requestedManualIndex) && environment.DATA_DIR) {
+    const dataDirectory = path.resolve(workingDirectory, environment.DATA_DIR);
+    const persistentDirectory = path.basename(dataDirectory).toLowerCase() === "recovered"
+      ? path.dirname(dataDirectory)
+      : dataDirectory;
+    const persistentIndex = path.join(persistentDirectory, path.basename(requestedManualIndex));
+    if (existsSync(persistentIndex)) {
+      manualIndexFile = persistentIndex;
+      manualBundleFile = path.join(persistentDirectory, path.basename(requestedManualBundle));
+    }
+  }
+
   return {
     port: parsePort(environment.PORT),
     production: environment.NODE_ENV === "production",
     publicDirectory: path.resolve(workingDirectory, environment.PUBLIC_DIR || "public"),
     manualsDirectory: path.resolve(workingDirectory, environment.MANUALS_DIR || "manuals"),
-    manualBundleFile: path.resolve(workingDirectory, environment.MANUAL_BUNDLE_PATH || "private-data/manuals.bundle"),
-    manualIndexFile: path.resolve(workingDirectory, environment.MANUAL_INDEX_PATH || "private-data/manuals-index.json"),
+    manualBundleFile,
+    manualIndexFile,
     manualStorage: parseManualStorage(environment.MANUAL_STORAGE),
     configuredOrigins: environment.PUBLIC_ORIGIN,
   };
