@@ -29,7 +29,8 @@ import {
 
 const app = express();
 const db = initializeDatabase();
-const port = Number(process.env.PORT || 3000);
+const configuredPort = process.env.PORT;
+const port = configuredPort && /^\d+$/.test(configuredPort) ? Number(configuredPort) : configuredPort || 3000;
 const production = process.env.NODE_ENV === "production";
 if (production) app.set("trust proxy", 1);
 
