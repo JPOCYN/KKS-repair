@@ -7,6 +7,8 @@ interface PageOptions {
   structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
+const assetVersion = "20260829-admin-redesign";
+
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -30,7 +32,7 @@ function page(title: string, content: string, user?: SessionUser | null, options
   const structuredData = options.structuredData
     ? `<script type="application/ld+json">${JSON.stringify(options.structuredData).replaceAll("<", "\\u003c")}</script>`
     : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><title>${escapeHtml(documentTitle)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${robots}">${canonical}${social}${structuredData}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="KKS Repair home"><span class="brand-mark" aria-hidden="true">K</span><span><strong>KKS</strong><small>Repair library</small></span></a>${navigation}</header><main>${content}</main><footer><div class="footer-summary"><span class="footer-brand">KKS Repair</span><span>Independent multi-brand service information platform.</span></div><p class="footer-disclaimer"><strong>Independent content notice:</strong> Information on this website is collected from publicly available online sources for reference. KKS Repair does not own, represent, endorse, or claim affiliation with any vehicle manufacturer or brand. All brand names, trademarks, documents, and related rights belong to their respective owners.</p></footer></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><title>${escapeHtml(documentTitle)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${robots}">${canonical}${social}${structuredData}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css?v=${assetVersion}"><script src="/app.js?v=${assetVersion}" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="KKS Repair home"><span class="brand-mark" aria-hidden="true">K</span><span><strong>KKS</strong><small>Repair library</small></span></a>${navigation}</header><main>${content}</main><footer><div class="footer-summary"><span class="footer-brand">KKS Repair</span><span>Independent multi-brand service information platform.</span></div><p class="footer-disclaimer"><strong>Independent content notice:</strong> Information on this website is collected from publicly available online sources for reference. KKS Repair does not own, represent, endorse, or claim affiliation with any vehicle manufacturer or brand. All brand names, trademarks, documents, and related rights belong to their respective owners.</p></footer></body></html>`;
 }
 
 export function landingView(user: SessionUser | undefined, siteOrigin: string): string {
