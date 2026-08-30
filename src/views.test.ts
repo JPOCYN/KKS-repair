@@ -53,6 +53,8 @@ test("customer pages render a modern English-only interface", () => {
     { id: 4, parent_id: 3, name: "Hidden descendant", relative_file: "Repair/200.html" },
   ]);
   assert.match(list, /Vehicle repair library/);
+  assert.match(list, /Access remaining/);
+  assert.match(list, /No expiry/);
   assert.match(list, /Search by vehicle or model/);
   assert.match(list, /Vehicle brands/);
   assert.match(list, /McLaren/);
@@ -60,11 +62,21 @@ test("customer pages render a modern English-only interface", () => {
   assert.match(list, /Lamborghini/);
   assert.match(list, /Coming soon/);
   assert.match(detail, /English service sheet/);
+  assert.match(detail, />Start reading</);
+  assert.match(detail, /<a class="brand" href="\/" aria-label="Supercar Docs home">/);
   assert.match(detail, /\/modern-manuals\/index\.html\?manual=manual&amp;page=Repair%2F100\.html/);
   assert.doesNotMatch(detail, /\/manuals\/manual\/html\/Repair\/100\.html/);
   assert.doesNotMatch(detail, /Legacy fallback/);
   assert.doesNotMatch(detail, /服務手冊|Hidden descendant/);
   assert.doesNotMatch(`${list}${detail}`, /[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/);
+});
+
+test("customer library shows the remaining access period", () => {
+  const expiringUser: SessionUser = { ...user, vipExpiresAt: "2030-01-01" };
+  const html = vehicleListView(expiringUser, []);
+  assert.match(html, /Access remaining/);
+  assert.match(html, /\d+ days left/);
+  assert.match(html, /href="\/access"/);
 });
 
 test("public landing page includes SEO, GEO-friendly answers, future coverage, and the site disclaimer", () => {

@@ -364,11 +364,15 @@ app.post("/logout", requireUser, requireCsrf, async (req: AuthenticatedRequest, 
 });
 
 app.get("/", (req: AuthenticatedRequest, res) => {
-  if (isAppHostname(req.hostname, appSiteOrigin, publicSiteOrigin)) {
-    res.redirect(req.sessionUser ? destinationFor(req.sessionUser) : "/login");
+  if (req.sessionUser) {
+    res.redirect(destinationFor(req.sessionUser));
     return;
   }
-  res.send(landingView(req.sessionUser, publicSiteOrigin, appSiteOrigin));
+  if (isAppHostname(req.hostname, appSiteOrigin, publicSiteOrigin)) {
+    res.redirect("/login");
+    return;
+  }
+  res.send(landingView(undefined, publicSiteOrigin, appSiteOrigin));
 });
 
 app.get("/access", requireUser, (req: AuthenticatedRequest, res) => {

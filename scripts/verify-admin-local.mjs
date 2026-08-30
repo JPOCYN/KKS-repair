@@ -101,13 +101,17 @@ try {
   const dashboardHtml = await dashboard.text();
   const csrf = dashboardHtml.match(/name="_csrf" value="([^"]+)"/)?.[1];
   assert(dashboard.status === 200 && csrf, "Admin dashboard or CSRF token failed");
+  const adminHome = await request("/", { headers: { Cookie: cookie } });
+  assert(adminHome.status === 302 && adminHome.headers.get("location") === "/admin", "Signed-in admin logo route did not return to the dashboard");
   const reader = await request("/modern-manuals/index.html", { headers: { Cookie: cookie } });
   const readerHtml = await reader.text();
   const readerScript = await (await request("/modern-manuals/reader.js", { headers: { Cookie: cookie } })).text();
   const readerCatalog = await request("/modern-manuals/catalog.json", { headers: { Cookie: cookie } });
   assert(reader.status === 200 && readerHtml.includes("Supercar Docs manual reader"), "Authenticated modern reader failed");
+  assert(readerHtml.includes('href="/" aria-label="Return to dashboard"'), "Reader logo does not use the dashboard route");
   assert(readerCatalog.status === 200, "Authenticated modern reader catalog failed");
   assert(readerScript.includes("new URL(`pdfs/${path}`, manualsBaseUrl())"), "PDF URLs do not use the protected manual endpoint");
+  assert(readerScript.includes("option.textContent = manual.name"), "Reader vehicle selector still appends document counts");
 
   const codeCreated = await form("/admin/codes", cookie, {
     _csrf: csrf,
@@ -134,7 +138,12 @@ try {
   });
   assert(registered.status === 302 && registered.headers.get("location") === "/vehicles", "Email-only registration failed");
   const customerCookie = registered.headers.get("set-cookie")?.split(";", 1)[0];
-  assert(customerCookie && (await request("/vehicles", { headers: { Cookie: customerCookie } })).status === 200, "Activated customer cannot access the library");
+  const customerVehicles = customerCookie && await request("/vehicles", { headers: { Cookie: customerCookie } });
+  const customerVehiclesHtml = customerVehicles && await customerVehicles.text();
+  assert(customerCookie && customerVehicles?.status === 200, "Activated customer cannot access the library");
+  assert(customerVehiclesHtml?.includes("Access remaining") && customerVehiclesHtml.includes("days left"), "Customer access countdown is missing");
+  const customerHome = await request("/", { headers: { Cookie: customerCookie } });
+  assert(customerHome.status === 302 && customerHome.headers.get("location") === "/vehicles", "Signed-in customer logo route did not return to the dashboard");
   const usedCodesHtml = await (await request("/admin/codes", { headers: { Cookie: cookie } })).text();
   assert(usedCodesHtml.includes('data-code-state="used"') && usedCodesHtml.includes("ADMINFLOWTEST"), "Redeemed authorization code did not remain in the Used audit list");
   const bulkCodesCreated = await form("/admin/codes/bulk", cookie, {

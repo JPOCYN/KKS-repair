@@ -234,7 +234,7 @@
     for (const manual of state.catalog.manuals) {
       const option = document.createElement("option");
       option.value = manual.folder;
-      option.textContent = `${manual.name} · ${manual.documentCount.toLocaleString("en-US")}`;
+      option.textContent = manual.name;
       elements.manualSelect.append(option);
     }
   }
