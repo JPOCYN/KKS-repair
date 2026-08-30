@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -12,6 +12,8 @@ import { hashPassword, verifyPassword } from "./password.js";
 import { createManualStorageHandler } from "./manual-storage.js";
 import { isAllowedWriteOrigin } from "./origin.js";
 import { isApplicationPath, isAppHostname, isPublicContentPath, isPublicHostname, splitSiteRedirect } from "./site-routing.js";
+import { evergreenGuides, findEvergreenGuide } from "./public-content.js";
+import { generateSeoArticle } from "./seo-automation.js";
 import {
   createAppRepository,
   type CodeInput,
@@ -24,11 +26,15 @@ import {
   adminContactRequestsView,
   adminMemberFormView,
   adminMembersView,
+  adminBlogView,
   adminVehicleFormView,
   adminVehiclesView,
   adminView,
   accessStatusView,
   contactView,
+  generatedGuideView,
+  guideIndexView,
+  guideView,
   landingView,
   loginView,
   privacyView,
@@ -36,6 +42,7 @@ import {
   termsView,
   vehicleDetailView,
   vehicleListView,
+  workshopConverterView,
 } from "./views.js";
 
 const app = express();
@@ -291,8 +298,17 @@ app.get("/robots.txt", (req, res) => {
   res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vehicles\nDisallow: /manuals\nDisallow: /modern-manuals\nDisallow: /login\nDisallow: /register\nSitemap: ${publicSiteOrigin}/sitemap.xml\n`);
 });
 
-app.get("/sitemap.xml", (_req, res) => {
-  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${publicSiteOrigin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`);
+app.get("/sitemap.xml", async (_req, res) => {
+  const generated = await repository.listPublishedBlogPosts();
+  const paths = [
+    { path: "/", priority: "1.0", changefreq: "weekly" },
+    { path: "/guides", priority: "0.9", changefreq: "daily" },
+    { path: "/tools/workshop-unit-converter", priority: "0.8", changefreq: "monthly" },
+    ...evergreenGuides.map((guide) => ({ path: `/guides/${guide.slug}`, priority: "0.8", changefreq: "monthly" })),
+    ...generated.map((post) => ({ path: `/guides/${String(post.slug)}`, priority: "0.8", changefreq: "weekly" })),
+  ];
+  const urls = paths.map((item) => `<url><loc>${new URL(item.path, publicSiteOrigin).toString()}</loc><changefreq>${item.changefreq}</changefreq><priority>${item.priority}</priority></url>`).join("");
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 });
 
 app.get("/login", (req: AuthenticatedRequest, res) => {
@@ -308,6 +324,26 @@ app.get("/register", (req: AuthenticatedRequest, res) => {
 app.get("/privacy", (_req, res) => res.send(privacyView(publicSiteOrigin)));
 app.get("/terms", (_req, res) => res.send(termsView(publicSiteOrigin)));
 app.get("/contact", (_req, res) => res.send(contactView(publicSiteOrigin)));
+app.get("/guides", async (_req, res) => res.send(guideIndexView(await repository.listPublishedBlogPosts(), publicSiteOrigin)));
+app.get("/guides/:slug", async (req, res) => {
+  const evergreen = findEvergreenGuide(req.params.slug);
+  if (evergreen) {
+    res.send(guideView(evergreen, publicSiteOrigin));
+    return;
+  }
+  const generated = await repository.getPublishedBlogPost(req.params.slug);
+  if (!generated) {
+    res.status(404).send("Guide not found");
+    return;
+  }
+  const html = generatedGuideView(generated, publicSiteOrigin);
+  if (!html) {
+    res.status(404).send("Guide not found");
+    return;
+  }
+  res.send(html);
+});
+app.get("/tools/workshop-unit-converter", (_req, res) => res.send(workshopConverterView(publicSiteOrigin)));
 app.post("/contact", contactLimiter, async (req, res) => {
   const parsed = contactSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -393,8 +429,81 @@ app.get("/vehicles/:id", requireLibraryAccess, async (req: AuthenticatedRequest,
   res.send(vehicleDetailView(req.sessionUser!, detail.car, detail.menu));
 });
 
+function automationEnabled(): boolean {
+  return process.env.SEO_AUTOPUBLISH_ENABLED?.trim().toLowerCase() === "true";
+}
+
+function secretsMatch(received: string, expected: string): boolean {
+  const left = Buffer.from(received);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+async function autoPublishSeoArticle(): Promise<{ title: string; slug: string }> {
+  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
+  if (!automationEnabled()) throw new Error("SEO auto-publishing is paused");
+  if (!apiKey) throw new Error("DEEPSEEK_API_KEY is not configured");
+  const existing = await repository.listBlogPosts();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 90_000);
+  try {
+    const article = await generateSeoArticle({
+      apiKey,
+      existingTitles: [...evergreenGuides.map((guide) => guide.title), ...existing.map((post) => String(post.title || ""))],
+      siteOrigin: publicSiteOrigin,
+      signal: controller.signal,
+    });
+    const id = await repository.createBlogPost(article);
+    if (!id) throw new Error("The generated topic already exists; no duplicate was published");
+    return { title: article.title, slug: article.slug };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 app.get("/admin", requireAdmin, async (req: AuthenticatedRequest, res) => {
   res.send(adminView(req.sessionUser!, await repository.getDashboard()));
+});
+
+app.get("/admin/blog", requireAdmin, async (req: AuthenticatedRequest, res) => {
+  res.send(adminBlogView(req.sessionUser!, await repository.listBlogPosts(), {
+    published: typeof req.query.published === "string" ? req.query.published : undefined,
+    error: typeof req.query.error === "string" ? req.query.error : undefined,
+    automationEnabled: automationEnabled(),
+  }));
+});
+
+app.post("/admin/blog/auto-publish", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  try {
+    const article = await autoPublishSeoArticle();
+    res.redirect(`/admin/blog?published=${encodeURIComponent(article.title)}`);
+  } catch (error) {
+    res.status(502).send(adminBlogView(req.sessionUser!, await repository.listBlogPosts(), { error: error instanceof Error ? error.message : "Article generation failed", automationEnabled: automationEnabled() }));
+  }
+});
+
+app.post("/admin/blog/:id/status", requireAdmin, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  const id = Number(req.params.id);
+  const status = z.enum(["published", "disabled"]).safeParse(req.body.status);
+  if (!Number.isInteger(id) || !status.success) return res.status(400).send("Invalid request");
+  if (!await repository.setBlogPostStatus(id, status.data)) return res.status(404).send("Not found");
+  res.redirect("/admin/blog");
+});
+
+app.post("/internal/seo/auto-publish", async (req, res) => {
+  const expected = process.env.SEO_AUTOMATION_SECRET?.trim() || "";
+  const authorization = req.get("authorization") || "";
+  const received = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!expected || !received || !secretsMatch(received, expected)) {
+    res.status(401).json({ status: "error", message: "Unauthorized" });
+    return;
+  }
+  try {
+    const article = await autoPublishSeoArticle();
+    res.status(201).json({ status: "published", ...article });
+  } catch (error) {
+    res.status(502).json({ status: "error", message: error instanceof Error ? error.message : "Article generation failed" });
+  }
 });
 
 app.get("/admin/requests", requireAdmin, async (req: AuthenticatedRequest, res) => {

@@ -9,6 +9,7 @@ import {
 } from "./db.js";
 import type {
   AppRepository,
+  BlogPostInput,
   CodeInput,
   ContactRequestInput,
   DashboardData,
@@ -197,6 +198,34 @@ export class SqliteRepository implements AppRepository {
       UPDATE contact_requests SET status='resolved',resolved_at=CURRENT_TIMESTAMP
       WHERE id=? AND status='open'
     `).run(id);
+    return result.changes > 0;
+  }
+
+  async listPublishedBlogPosts(): Promise<DataRecord[]> {
+    return this.database.prepare("SELECT id,slug,title,meta_description,excerpt,category,brand,content_json,published_at,updated_at FROM blog_posts WHERE status='published' ORDER BY published_at DESC,id DESC").all() as DataRecord[];
+  }
+
+  async getPublishedBlogPost(slug: string): Promise<DataRecord | null> {
+    return (this.database.prepare("SELECT id,slug,title,meta_description,excerpt,category,brand,content_json,published_at,updated_at FROM blog_posts WHERE slug=? AND status='published'").get(slug) as DataRecord | undefined) || null;
+  }
+
+  async listBlogPosts(): Promise<DataRecord[]> {
+    return this.database.prepare("SELECT id,slug,title,category,brand,status,published_at,created_at,updated_at FROM blog_posts ORDER BY published_at DESC,id DESC").all() as DataRecord[];
+  }
+
+  async createBlogPost(input: BlogPostInput): Promise<number | null> {
+    try {
+      const result = this.database.prepare(`INSERT INTO blog_posts (slug,title,meta_description,excerpt,category,brand,content_json,source_query,status,published_at) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .run(input.slug, input.title, input.metaDescription, input.excerpt, input.category, input.brand, input.contentJson, input.sourceQuery, input.status, input.publishedAt);
+      return Number(result.lastInsertRowid);
+    } catch (error) {
+      if (String(error).includes("UNIQUE")) return null;
+      throw error;
+    }
+  }
+
+  async setBlogPostStatus(id: number, status: "published" | "disabled"): Promise<boolean> {
+    const result = this.database.prepare("UPDATE blog_posts SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(status, id);
     return result.changes > 0;
   }
 

@@ -10,6 +10,7 @@ import mysql, {
 import { hashPassword, verifyPassword } from "./password.js";
 import type {
   AppRepository,
+  BlogPostInput,
   CodeInput,
   ContactRequestInput,
   DashboardData,
@@ -191,6 +192,22 @@ export class MySqlRepository implements AppRepository {
         created_at VARCHAR(64) NOT NULL,
         resolved_at VARCHAR(64) NULL,
         INDEX contact_requests_status_created_idx (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      `CREATE TABLE IF NOT EXISTS blog_posts (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(180) NOT NULL UNIQUE,
+        title VARCHAR(240) NOT NULL,
+        meta_description VARCHAR(320) NOT NULL,
+        excerpt TEXT NOT NULL,
+        category VARCHAR(120) NOT NULL,
+        brand VARCHAR(80) NOT NULL,
+        content_json LONGTEXT NOT NULL,
+        source_query VARCHAR(500) NOT NULL,
+        status ENUM('published','disabled') NOT NULL DEFAULT 'published',
+        published_at VARCHAR(64) NOT NULL,
+        created_at VARCHAR(64) NOT NULL,
+        updated_at VARCHAR(64) NOT NULL,
+        INDEX blog_posts_status_published_idx (status, published_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
       `CREATE TABLE IF NOT EXISTS app_meta (
         meta_key VARCHAR(100) PRIMARY KEY,
@@ -545,6 +562,37 @@ export class MySqlRepository implements AppRepository {
       UPDATE contact_requests SET status='resolved',resolved_at=?
       WHERE id=? AND status='open'
     `, [new Date().toISOString(), id]);
+    return result.affectedRows > 0;
+  }
+
+  async listPublishedBlogPosts(): Promise<DataRecord[]> {
+    const [rows] = await this.pool.query<QueryRow[]>("SELECT id,slug,title,meta_description,excerpt,category,brand,content_json,published_at,updated_at FROM blog_posts WHERE status='published' ORDER BY published_at DESC,id DESC");
+    return asRecords(rows);
+  }
+
+  async getPublishedBlogPost(slug: string): Promise<DataRecord | null> {
+    const [rows] = await this.pool.execute<QueryRow[]>("SELECT id,slug,title,meta_description,excerpt,category,brand,content_json,published_at,updated_at FROM blog_posts WHERE slug=? AND status='published' LIMIT 1", [slug]);
+    return rows[0] ? { ...rows[0] } : null;
+  }
+
+  async listBlogPosts(): Promise<DataRecord[]> {
+    const [rows] = await this.pool.query<QueryRow[]>("SELECT id,slug,title,category,brand,status,published_at,created_at,updated_at FROM blog_posts ORDER BY published_at DESC,id DESC");
+    return asRecords(rows);
+  }
+
+  async createBlogPost(input: BlogPostInput): Promise<number | null> {
+    try {
+      const now = new Date().toISOString();
+      const [result] = await this.pool.execute<ResultSetHeader>(`INSERT INTO blog_posts (slug,title,meta_description,excerpt,category,brand,content_json,source_query,status,published_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [input.slug, input.title, input.metaDescription, input.excerpt, input.category, input.brand, input.contentJson, input.sourceQuery, input.status, input.publishedAt, now, now]);
+      return Number(result.insertId);
+    } catch (error) {
+      if ((error as { code?: string }).code === "ER_DUP_ENTRY") return null;
+      throw error;
+    }
+  }
+
+  async setBlogPostStatus(id: number, status: "published" | "disabled"): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>("UPDATE blog_posts SET status=?,updated_at=? WHERE id=?", [status, new Date().toISOString(), id]);
     return result.affectedRows > 0;
   }
 

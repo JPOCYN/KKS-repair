@@ -173,3 +173,11 @@ The check covers health, direct private-file denial, customer and administrator 
 - Public privacy, terms, and contact/takedown pages are available at `/privacy`, `/terms`, and `/contact`.
 - Contact, privacy, and copyright requests are stored in the active database and reviewed at `/admin/requests`.
 - Changing `ADMIN_PASSWORD` rotates the configured administrator password on startup and invalidates that administrator's existing sessions.
+
+## Automated SEO guide publishing
+
+The public site includes original evergreen guides, a workshop unit converter, and an optional DeepSeek V4 Flash publishing pipeline. Generated articles are stored in the active application database, rendered as escaped structured content, linked from `/guides`, and included in `/sitemap.xml`.
+
+Set `DEEPSEEK_API_KEY`, a long random `SEO_AUTOMATION_SECRET`, and `SEO_AUTOPUBLISH_ENABLED=true` only in the server environment. A daily Hostinger cron can make a `POST` request to `https://app.supercardocs.com/internal/seo/auto-publish` with `Authorization: Bearer <SEO_AUTOMATION_SECRET>`. Administrators can also publish on demand and disable individual articles at `/admin/blog`.
+
+The generator uses DeepSeek's server-side web search, avoids existing titles, requires source links, and rejects common technical-specification patterns. It must not receive protected manual content, customer data, credentials, or private PDFs. Keep the kill switch available and review the public output regularly; automated publishing is not a substitute for technical or legal review.

@@ -79,6 +79,24 @@ test("SQLite remains the default repository and persists application sessions", 
     assert.equal(request?.status, "open");
     assert.equal(await repository.resolveContactRequest(Number(request?.id)), true);
     assert.equal((await repository.listContactRequests())[0]?.status, "resolved");
+    const blogId = await repository.createBlogPost({
+      slug: "safe-workshop-guide",
+      title: "A Safe Workshop Guide for Service Information",
+      metaDescription: "An original test description for a public workshop information guide without protected specifications or copied procedures.",
+      excerpt: "An original test excerpt that explains how the public guide store persists generated articles while keeping protected documents private.",
+      category: "Workshop intelligence",
+      brand: "Multi-brand",
+      contentJson: JSON.stringify({ sections: [{ heading: "Use the right source", paragraphs: ["Always verify the exact vehicle and current service-information source before beginning qualified workshop work."] }], sources: [{ title: "Example source", url: "https://example.com" }] }),
+      sourceQuery: "safe workshop service information",
+      status: "published",
+      publishedAt: "2026-08-30T00:00:00.000Z",
+    });
+    assert.ok(blogId);
+    assert.equal(await repository.createBlogPost({ slug: "safe-workshop-guide", title: "Duplicate guide title that should not be inserted", metaDescription: "A duplicate description that is intentionally long enough for the repository test and should not be stored.", excerpt: "A duplicate excerpt that should never replace the existing stored post when the slug has already been used.", category: "Test", brand: "Multi-brand", contentJson: "{}", sourceQuery: "duplicate", status: "published", publishedAt: "2026-08-30T00:00:00.000Z" }), null);
+    assert.equal((await repository.getPublishedBlogPost("safe-workshop-guide"))?.title, "A Safe Workshop Guide for Service Information");
+    assert.equal((await repository.listPublishedBlogPosts()).length, 1);
+    assert.equal(await repository.setBlogPostStatus(blogId, "disabled"), true);
+    assert.equal(await repository.getPublishedBlogPost("safe-workshop-guide"), null);
   } finally {
     await repository.close();
     rmSync(temporary, { recursive: true, force: true });

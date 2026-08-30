@@ -11,13 +11,17 @@ import {
   contactView,
   englishOnlyManualMenu,
   formatAccessDuration,
+  guideIndexView,
+  guideView,
   landingView,
   privacyView,
   registerView,
   termsView,
   vehicleDetailView,
   vehicleListView,
+  workshopConverterView,
 } from "./views.js";
+import { evergreenGuides } from "./public-content.js";
 
 const user: SessionUser = {
   id: 1,
@@ -108,6 +112,23 @@ test("public landing page includes SEO, GEO-friendly answers, future coverage, a
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /href="\/terms"/);
   assert.match(html, /href="\/contact"/);
+  assert.match(html, /workshop-platform\.jpg/);
+  assert.match(html, /1,434/);
+  assert.match(html, /Browse workshop guides/);
+});
+
+test("public guide and converter pages are indexable, structured, and keep protected specifications out", () => {
+  const guideIndex = guideIndexView([], "https://supercardocs.com");
+  const guide = guideView(evergreenGuides[0]!, "https://supercardocs.com");
+  const converter = workshopConverterView("https://supercardocs.com");
+  assert.match(guideIndex, /index,follow/);
+  assert.match(guideIndex, /CollectionPage/);
+  assert.match(guide, /"@type":"Article"/);
+  assert.match(guide, /not a repair procedure/);
+  assert.doesNotMatch(guide, /\b\d+(?:\.\d+)?\s*(?:Nm|lb-ft|psi|bar)\b/);
+  assert.match(converter, /Workshop unit converter/);
+  assert.match(converter, /data-factor="0\.7375621493"/);
+  assert.match(converter, /WebApplication/);
 });
 
 test("registration and public policy pages provide launch-ready privacy and takedown notices", () => {

@@ -74,6 +74,22 @@ export interface ContactRequestRow {
   resolved_at: string | null;
 }
 
+export interface BlogPostRow {
+  id: number;
+  slug: string;
+  title: string;
+  meta_description: string;
+  excerpt: string;
+  category: string;
+  brand: string;
+  content_json: string;
+  source_query: string;
+  status: "published" | "disabled";
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 type TableDefinition<Row, Insert = Row> = {
   Row: Row & Record<string, unknown>;
   Insert: Insert & Record<string, unknown>;
@@ -91,6 +107,7 @@ export type Database = {
       manual_menu: TableDefinition<ManualMenuRow, Omit<ManualMenuRow, "id"> & { id?: number }>;
       app_sessions: TableDefinition<AppSessionRow, Omit<AppSessionRow, "created_at"> & { created_at?: string }>;
       contact_requests: TableDefinition<ContactRequestRow, Omit<ContactRequestRow, "id" | "created_at" | "resolved_at" | "status"> & { id?: number; created_at?: string; resolved_at?: string | null; status?: "open" | "resolved" }>;
+      blog_posts: TableDefinition<BlogPostRow, Omit<BlogPostRow, "id" | "created_at" | "updated_at"> & { id?: number; created_at?: string; updated_at?: string }>;
     };
     Views: Record<never, never>;
     Functions: {

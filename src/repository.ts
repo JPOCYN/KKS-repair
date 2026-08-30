@@ -39,6 +39,19 @@ export interface ContactRequestInput {
   message: string;
 }
 
+export interface BlogPostInput {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  excerpt: string;
+  category: string;
+  brand: string;
+  contentJson: string;
+  sourceQuery: string;
+  status: "published" | "disabled";
+  publishedAt: string;
+}
+
 export interface LoginUser {
   id: number;
   passwordHash: string;
@@ -81,6 +94,11 @@ export interface AppRepository {
   createContactRequest(input: ContactRequestInput): Promise<void>;
   listContactRequests(): Promise<DataRecord[]>;
   resolveContactRequest(id: number): Promise<boolean>;
+  listPublishedBlogPosts(): Promise<DataRecord[]>;
+  getPublishedBlogPost(slug: string): Promise<DataRecord | null>;
+  listBlogPosts(): Promise<DataRecord[]>;
+  createBlogPost(input: BlogPostInput): Promise<number | null>;
+  setBlogPostStatus(id: number, status: "published" | "disabled"): Promise<boolean>;
   listCodes(): Promise<DataRecord[]>;
   getCode(id: number): Promise<DataRecord | null>;
   createCode(input: CodeInput): Promise<void>;

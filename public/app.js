@@ -155,3 +155,29 @@ initializeAdminFilter({
   emptySelector: "[data-code-empty]",
   initialState: "available",
 });
+
+function formatConvertedValue(value) {
+  if (!Number.isFinite(value)) return "";
+  return String(Number(value.toPrecision(10)));
+}
+
+for (const converter of document.querySelectorAll("[data-converter]")) {
+  const inputA = converter.querySelector("[data-converter-a]");
+  const inputB = converter.querySelector("[data-converter-b]");
+  const clear = converter.querySelector("[data-converter-clear]");
+  const factor = Number(converter.getAttribute("data-factor"));
+  if (!(inputA instanceof HTMLInputElement) || !(inputB instanceof HTMLInputElement) || !Number.isFinite(factor) || factor === 0) continue;
+  inputA.addEventListener("input", () => { inputB.value = inputA.value === "" ? "" : formatConvertedValue(Number(inputA.value) * factor); });
+  inputB.addEventListener("input", () => { inputA.value = inputB.value === "" ? "" : formatConvertedValue(Number(inputB.value) / factor); });
+  clear?.addEventListener("click", () => { inputA.value = ""; inputB.value = ""; inputA.focus(); });
+}
+
+for (const converter of document.querySelectorAll("[data-temperature-converter]")) {
+  const celsius = converter.querySelector("[data-temperature-c]");
+  const fahrenheit = converter.querySelector("[data-temperature-f]");
+  const clear = converter.querySelector("[data-temperature-clear]");
+  if (!(celsius instanceof HTMLInputElement) || !(fahrenheit instanceof HTMLInputElement)) continue;
+  celsius.addEventListener("input", () => { fahrenheit.value = celsius.value === "" ? "" : formatConvertedValue((Number(celsius.value) * 9) / 5 + 32); });
+  fahrenheit.addEventListener("input", () => { celsius.value = fahrenheit.value === "" ? "" : formatConvertedValue(((Number(fahrenheit.value) - 32) * 5) / 9); });
+  clear?.addEventListener("click", () => { celsius.value = ""; fahrenheit.value = ""; celsius.focus(); });
+}

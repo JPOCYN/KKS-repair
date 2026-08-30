@@ -15,7 +15,10 @@ test("app legal links return to the public site without redirecting writes", () 
   assert.equal(isAppHostname("app.supercardocs.com", origins.appOrigin, origins.publicOrigin), true);
   assert.equal(isPublicHostname("supercardocs.com", origins.publicOrigin, origins.appOrigin), true);
   assert.equal(isApplicationPath("/admin/members"), true);
+  assert.equal(isApplicationPath("/internal/seo/auto-publish"), true);
   assert.equal(isPublicContentPath("/contact"), true);
+  assert.equal(isPublicContentPath("/guides/mclaren-example"), true);
+  assert.equal(isPublicContentPath("/tools/workshop-unit-converter"), true);
 });
 
 test("combined and local deployments keep current routes", () => {

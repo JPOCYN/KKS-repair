@@ -157,9 +157,26 @@ export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env)
       resolved_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS blog_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      meta_description TEXT NOT NULL,
+      excerpt TEXT NOT NULL,
+      category TEXT NOT NULL,
+      brand TEXT NOT NULL,
+      content_json TEXT NOT NULL,
+      source_query TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'published' CHECK(status IN ('published','disabled')),
+      published_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS manual_menu_car_id_idx ON manual_menu(car_id);
     CREATE INDEX IF NOT EXISTS contact_requests_status_created_idx ON contact_requests(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS blog_posts_status_published_idx ON blog_posts(status, published_at DESC);
   `);
 
   const codeColumns = db.prepare("PRAGMA table_info(authorization_codes)").all() as Array<{ name: string }>;

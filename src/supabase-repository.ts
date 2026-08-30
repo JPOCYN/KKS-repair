@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashPassword, verifyPassword } from "./password.js";
 import type {
   AppRepository,
+  BlogPostInput,
   CodeInput,
   ContactRequestInput,
   DashboardData,
@@ -383,6 +384,55 @@ export class SupabaseRepository implements AppRepository {
       resolved_at: new Date().toISOString(),
     }).eq("id", id).eq("status", "open").select("id").maybeSingle();
     assertNoError(error, "Cannot resolve contact request");
+    return Boolean(data);
+  }
+
+  async listPublishedBlogPosts(): Promise<DataRecord[]> {
+    const rows = await collectPages((from, to) => this.client.from("blog_posts")
+      .select("id,slug,title,meta_description,excerpt,category,brand,content_json,published_at,updated_at")
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .range(from, to));
+    return rows as unknown as DataRecord[];
+  }
+
+  async getPublishedBlogPost(slug: string): Promise<DataRecord | null> {
+    const { data, error } = await this.client.from("blog_posts")
+      .select("id,slug,title,meta_description,excerpt,category,brand,content_json,published_at,updated_at")
+      .eq("slug", slug).eq("status", "published").maybeSingle();
+    assertNoError(error, "Cannot read blog post");
+    return data as unknown as DataRecord | null;
+  }
+
+  async listBlogPosts(): Promise<DataRecord[]> {
+    const rows = await collectPages((from, to) => this.client.from("blog_posts")
+      .select("id,slug,title,category,brand,status,published_at,created_at,updated_at")
+      .order("published_at", { ascending: false })
+      .range(from, to));
+    return rows as unknown as DataRecord[];
+  }
+
+  async createBlogPost(input: BlogPostInput): Promise<number | null> {
+    const { data, error } = await this.client.from("blog_posts").insert({
+      slug: input.slug,
+      title: input.title,
+      meta_description: input.metaDescription,
+      excerpt: input.excerpt,
+      category: input.category,
+      brand: input.brand,
+      content_json: input.contentJson,
+      source_query: input.sourceQuery,
+      status: input.status,
+      published_at: input.publishedAt,
+    }).select("id").maybeSingle();
+    if (error && error.code === "23505") return null;
+    assertNoError(error, "Cannot create blog post");
+    return data ? Number(data.id) : null;
+  }
+
+  async setBlogPostStatus(id: number, status: "published" | "disabled"): Promise<boolean> {
+    const { data, error } = await this.client.from("blog_posts").update({ status, updated_at: new Date().toISOString() }).eq("id", id).select("id").maybeSingle();
+    assertNoError(error, "Cannot update blog post status");
     return Boolean(data);
   }
 
