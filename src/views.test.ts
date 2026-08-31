@@ -107,6 +107,8 @@ test("public landing page includes SEO, GEO-friendly answers, future coverage, a
   assert.match(html, /Who is the platform designed for\?/);
   assert.match(html, /does not own, represent, endorse, or claim affiliation/);
   assert.match(html, /Member sign in/);
+  assert.match(html, /aria-label="Primary navigation"[^]*href="\/guides">Workshop Guides<\/a>/);
+  assert.match(html, /aria-label="Resources, legal, and support"[^]*href="\/guides">Workshop Guides<\/a>/);
   assert.match(html, /href="https:\/\/app\.example\.com\/login"/);
   assert.match(html, /href="https:\/\/app\.example\.com\/login#register"/);
   assert.match(html, /href="\/privacy"/);
