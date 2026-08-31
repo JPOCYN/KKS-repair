@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generateSeoArticle } from "./seo-automation.js";
+import { generateSeoArticle, isSafeSeoTopic } from "./seo-automation.js";
+
+test("classifies unattended SEO topics conservatively", () => {
+  assert.equal(isSafeSeoTopic("McLaren VIN decoding and service record organisation"), true);
+  assert.equal(isSafeSeoTopic("McLaren Hybrid High-Voltage Safety: Workshop Pre-Service Protocol"), false);
+  assert.equal(isSafeSeoTopic("Airbag and SRS workshop planning"), false);
+});
 
 test("selects the structured article among DeepSeek web-search progress messages", async () => {
   const originalFetch = globalThis.fetch;

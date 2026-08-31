@@ -13,7 +13,7 @@ import { createManualStorageHandler } from "./manual-storage.js";
 import { isAllowedWriteOrigin } from "./origin.js";
 import { isApplicationPath, isAppHostname, isPublicContentPath, isPublicHostname, splitSiteRedirect } from "./site-routing.js";
 import { evergreenGuides, findEvergreenGuide } from "./public-content.js";
-import { generateSeoArticle } from "./seo-automation.js";
+import { generateSeoArticle, isSafeSeoTopic } from "./seo-automation.js";
 import {
   createAppRepository,
   type CodeInput,
@@ -48,6 +48,15 @@ import {
 const app = express();
 const config = loadAppConfig();
 const repository = await createAppRepository();
+const generatedPosts = await repository.listBlogPosts();
+let disabledUnsafePostCount = 0;
+for (const post of generatedPosts) {
+  const id = Number(post.id);
+  if (String(post.status) === "published" && Number.isInteger(id) && !isSafeSeoTopic(`${String(post.title || "")} ${String(post.category || "")}`)) {
+    if (await repository.setBlogPostStatus(id, "disabled")) disabledUnsafePostCount += 1;
+  }
+}
+if (disabledUnsafePostCount > 0) console.warn(`Disabled ${disabledUnsafePostCount} generated SEO article(s) with prohibited safety topics`);
 const publicSiteOrigin = (() => {
   const configured = config.publicOrigin;
   try {

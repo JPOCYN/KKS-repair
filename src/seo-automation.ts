@@ -44,8 +44,17 @@ const generatedArticleSchema = z.object({
   })).min(1).max(6),
 });
 const generatedArticleJsonSchema = z.toJSONSchema(generatedArticleSchema);
+const prohibitedSeoTopicPatterns = [
+  /\b(?:high[-\s]?voltage|hybrid safety|battery isolation|service disconnect|de-energ(?:ize|ise)|capacitor discharge)\b/i,
+  /\b(?:airbag|srs|pyrotechnic|fuel system|fire suppression)\b/i,
+  /\b(?:brake bleeding|vehicle lifting|jacking points?|lockout|tagout)\b/i,
+];
 
 export type GeneratedArticle = z.infer<typeof generatedArticleSchema>;
+
+export function isSafeSeoTopic(value: string): boolean {
+  return !prohibitedSeoTopicPatterns.some((pattern) => pattern.test(value));
+}
 
 function slugify(value: string): string {
   return value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 170);
@@ -88,11 +97,6 @@ function parseGeneratedArticle(text: string): GeneratedArticle {
   const parsed = generatedArticleSchema.parse(JSON.parse(cleaned));
   const combined = JSON.stringify(parsed).toLowerCase();
   const topic = `${parsed.title} ${parsed.category} ${parsed.sourceQuery}`.toLowerCase();
-  const prohibitedTopics = [
-    /\b(?:high[-\s]?voltage|hybrid safety|battery isolation|service disconnect|de-energ(?:ize|ise)|capacitor discharge)\b/i,
-    /\b(?:airbag|srs|pyrotechnic|fuel system|fire suppression)\b/i,
-    /\b(?:brake bleeding|vehicle lifting|jacking points?|lockout|tagout)\b/i,
-  ];
   const prohibited = [
     /\b\d+(?:\.\d+)?\s*(?:nm|n·m|lb-?ft|psi|bar|mm|°c|°f)\b/i,
     /(?:tighten|torque)\s+(?:to|at)\s+\d+/i,
@@ -100,7 +104,7 @@ function parseGeneratedArticle(text: string): GeneratedArticle {
     /\b(?:disconnect|isolate|de-energ(?:ize|ise)|discharge|bleed|depressurize|disable)\b.{0,100}\b(?:battery|high[-\s]?voltage|airbag|srs|brake|fuel|hydraulic|pyrotechnic)\b/i,
     /\b(?:insulated gloves?|arc[-\s]?flash|personal protective equipment|\bppe\b)\b/i,
   ];
-  if (prohibitedTopics.some((pattern) => pattern.test(topic)) || prohibited.some((pattern) => pattern.test(combined))) {
+  if (!isSafeSeoTopic(topic) || prohibited.some((pattern) => pattern.test(combined))) {
     throw new Error("Generated article contains a prohibited technical specification or safety instruction");
   }
   return parsed;
