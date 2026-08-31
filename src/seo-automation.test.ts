@@ -39,3 +39,37 @@ test("selects the structured article among DeepSeek web-search progress messages
     globalThis.fetch = originalFetch;
   }
 });
+
+test("rejects high-voltage and other safety-critical article topics", async () => {
+  const originalFetch = globalThis.fetch;
+  const paragraph = "This generated copy discusses workshop preparation in broad language while directing readers toward official information. It is intentionally long enough to satisfy the article schema, but the subject itself is unsuitable for unattended public publishing and must be rejected before it reaches the database.";
+  const unsafeArticle = {
+    title: "McLaren Hybrid High-Voltage Safety: Workshop Pre-Service Protocol",
+    metaDescription: "A generated overview of high-voltage preparation for McLaren hybrid workshop visits, including safety planning and official information sources.",
+    excerpt: "A workshop-oriented overview of McLaren hybrid high-voltage safety planning, source verification, and preparation before a vehicle service visit.",
+    category: "Hybrid safety",
+    brand: "McLaren",
+    sourceQuery: "McLaren hybrid high-voltage safety protocol",
+    sections: [
+      { heading: "Understand the system", paragraphs: [paragraph] },
+      { heading: "Prepare the workshop", paragraphs: [paragraph] },
+      { heading: "Use official sources", paragraphs: [paragraph] },
+    ],
+    sources: [
+      { title: "McLaren Automotive", url: "https://cars.mclaren.com/" },
+      { title: "NHTSA", url: "https://www.nhtsa.gov/vehicle" },
+    ],
+  };
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(unsafeArticle) }] }],
+  }), { status: 200, headers: { "content-type": "application/json" } });
+
+  try {
+    await assert.rejects(
+      () => generateSeoArticle({ apiKey: "test-key", existingTitles: [], siteOrigin: "https://supercardocs.com" }),
+      /prohibited technical specification or safety instruction/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

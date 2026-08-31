@@ -87,12 +87,20 @@ function parseGeneratedArticle(text: string): GeneratedArticle {
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   const parsed = generatedArticleSchema.parse(JSON.parse(cleaned));
   const combined = JSON.stringify(parsed).toLowerCase();
+  const topic = `${parsed.title} ${parsed.category} ${parsed.sourceQuery}`.toLowerCase();
+  const prohibitedTopics = [
+    /\b(?:high[-\s]?voltage|hybrid safety|battery isolation|service disconnect|de-energ(?:ize|ise)|capacitor discharge)\b/i,
+    /\b(?:airbag|srs|pyrotechnic|fuel system|fire suppression)\b/i,
+    /\b(?:brake bleeding|vehicle lifting|jacking points?|lockout|tagout)\b/i,
+  ];
   const prohibited = [
     /\b\d+(?:\.\d+)?\s*(?:nm|n·m|lb-?ft|psi|bar|mm|°c|°f)\b/i,
     /(?:tighten|torque)\s+(?:to|at)\s+\d+/i,
     /disable\s+(?:the\s+)?(?:airbag|srs|safety)/i,
+    /\b(?:disconnect|isolate|de-energ(?:ize|ise)|discharge|bleed|depressurize|disable)\b.{0,100}\b(?:battery|high[-\s]?voltage|airbag|srs|brake|fuel|hydraulic|pyrotechnic)\b/i,
+    /\b(?:insulated gloves?|arc[-\s]?flash|personal protective equipment|\bppe\b)\b/i,
   ];
-  if (prohibited.some((pattern) => pattern.test(combined))) {
+  if (prohibitedTopics.some((pattern) => pattern.test(topic)) || prohibited.some((pattern) => pattern.test(combined))) {
     throw new Error("Generated article contains a prohibited technical specification or safety instruction");
   }
   return parsed;
@@ -104,15 +112,15 @@ export async function generateSeoArticle(options: {
   siteOrigin: string;
   signal?: AbortSignal;
 }): Promise<BlogPostInput> {
-  const instructions = `You are the editorial automation for Supercar Docs, an independent supercar workshop-information platform. Use web search to identify one current, useful, non-duplicate English topic for independent workshops or supercar owners researching service information. Prioritize specific informational intent related to McLaren coverage today, or Ferrari/Lamborghini workshop planning without claiming unavailable manuals. Produce original educational content only. Never copy a repair manual, never publish torque values, dimensions, fluid quantities, fault-code fixes, safety-critical step sequences, or claims that could cause unsafe repair. Never pretend Supercar Docs is affiliated with a manufacturer. Do not fabricate sources, customer quotes, statistics, or first-hand experience. Every source URL must use HTTPS and belong to one of these approved domains or its subdomains: ${trustedSourceDomains.join(", ")}. Return only valid JSON and no markdown.`;
+  const instructions = `You are the editorial automation for Supercar Docs, an independent supercar workshop-information platform. Use web search to identify one current, useful, non-duplicate English topic for independent workshops or supercar owners researching service information. Prioritize documentation discovery, ownership research, service-record organisation, model identification, terminology, or non-technical workshop planning related to McLaren coverage today, or Ferrari/Lamborghini workshop planning without claiming unavailable manuals. Produce original educational content only. Never choose high-voltage, battery isolation, airbag, SRS, pyrotechnic, braking, fuel-system, fire-suppression, vehicle-lifting, PPE, or other safety-critical topics. Never copy a repair manual, never publish torque values, dimensions, fluid quantities, fault-code fixes, safety-critical step sequences, or claims that could cause unsafe repair. Never pretend Supercar Docs is affiliated with a manufacturer. Do not fabricate sources, customer quotes, statistics, or first-hand experience. Every source URL must use HTTPS and belong to one of these approved domains or its subdomains: ${trustedSourceDomains.join(", ")}. Return only valid JSON and no markdown.`;
   const input = `Public site: ${options.siteOrigin}\nExisting titles to avoid: ${options.existingTitles.join(" | ") || "none"}\nChoose the best search-informed topic and return this exact JSON shape: {"title":"...","metaDescription":"...","excerpt":"...","category":"...","brand":"McLaren|Ferrari|Lamborghini|Multi-brand","sourceQuery":"the search intent used","sections":[{"heading":"...","paragraphs":["..."],"bullets":["..."]}],"sources":[{"title":"...","url":"https://..."}]}. The title must be 45-80 characters, metaDescription 140-160 characters, and excerpt 140-220 characters. Use exactly 3 sections with exactly one 90-130 word paragraph per section, no more than 3 bullets total, and exactly 2 approved-domain sources. Keep the complete JSON under 800 words.`;
   const researchResponse = await fetch("https://api.deepseek.com/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "deepseek-v4-flash",
-      instructions: `Research one useful, current service-information topic for Supercar Docs. Use no more than two web searches. Use only HTTPS sources on these approved domains or their subdomains: ${trustedSourceDomains.join(", ")}. Do not include repair specifications or safety-critical procedures. Return a concise English research brief under 250 words with exactly two source titles and URLs.`,
-      input: `Existing titles to avoid: ${options.existingTitles.join(" | ") || "none"}. Prefer McLaren today, or Ferrari/Lamborghini workshop planning without claiming unavailable manuals.`,
+      instructions: `Research one useful, current service-information topic for Supercar Docs. Use no more than two web searches. Use only HTTPS sources on these approved domains or their subdomains: ${trustedSourceDomains.join(", ")}. Choose a low-risk topic about documentation discovery, ownership research, service-record organisation, model identification, terminology, or non-technical workshop planning. Do not choose high-voltage, battery, airbag, braking, fuel-system, fire, lifting, PPE, repair-specification, diagnostic-fix, or other safety-critical subjects. Return a concise English research brief under 250 words with exactly two source titles and URLs.`,
+      input: `Existing titles to avoid: ${options.existingTitles.join(" | ") || "none"}. Prefer a low-risk McLaren information-discovery topic today, or Ferrari/Lamborghini workshop planning without claiming unavailable manuals.`,
       tools: [{ type: "web_search" }],
       tool_choice: "auto",
       reasoning: { effort: "none" },
