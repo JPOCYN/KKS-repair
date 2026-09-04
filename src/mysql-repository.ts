@@ -68,6 +68,14 @@ function sqliteRows(database: SqlJsDatabase, table: string, columns: string[]): 
     .map((row) => columns.map((column) => row[column] ?? null));
 }
 
+type SqlValue = string | number | bigint | boolean | Date | null | Buffer | Uint8Array;
+
+function sqlValue(value: unknown): SqlValue {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return value;
+  if (value instanceof Date || Buffer.isBuffer(value) || value instanceof Uint8Array) return value;
+  throw new Error("Unsupported SQLite migration value");
+}
+
 async function insertRows(
   connection: PoolConnection,
   table: string,
@@ -80,7 +88,7 @@ async function insertRows(
     const placeholders = chunk.map(() => `(${columns.map(() => "?").join(",")})`).join(",");
     await connection.execute(
       `INSERT INTO ${table} (${columns.join(",")}) VALUES ${placeholders}`,
-      chunk.flat(),
+      chunk.flat().map(sqlValue),
     );
   }
 }
