@@ -38,6 +38,7 @@ import {
   landingView,
   loginView,
   privacyView,
+  repairManualFinderView,
   registerView,
   termsView,
   vehicleDetailView,
@@ -134,7 +135,7 @@ type AuthenticatedRequest = Request & { sessionUser?: SessionUser; sessionToken?
 
 function destinationFor(user: LibraryAccessUser): string {
   if (user.role === "admin") return "/admin";
-  return hasLibraryAccess(user) ? "/vehicles" : "/access";
+  return hasLibraryAccess(user) ? "/vehicles" : "/account";
 }
 
 function sessionCookie(token: string, maxAge = 43200): string {
@@ -191,7 +192,7 @@ function requireLibraryAccess(req: AuthenticatedRequest, res: Response, next: Ne
     return;
   }
   if (!hasLibraryAccess(req.sessionUser)) {
-    res.redirect("/access");
+    res.redirect("/account");
     return;
   }
   next();
@@ -242,6 +243,7 @@ app.use((req, res, next) => {
 });
 
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const accountActionLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 const loginSchema = z.object({ email: z.email().max(254), password: z.string().min(1).max(200) });
 const registerSchema = z.object({
   email: z.email().max(254),
@@ -249,6 +251,14 @@ const registerSchema = z.object({
   password: z.string().min(10).max(200),
   acceptPolicies: z.literal("yes"),
 });
+const authorizationCodeSchema = z.object({
+  authCode: z.string().trim().min(1).max(100),
+});
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(10).max(200),
+  confirmPassword: z.string().min(10).max(200),
+}).refine((value) => value.newPassword === value.confirmPassword, { path: ["confirmPassword"] });
 const contactSchema = z.object({
   requestType: z.enum(["general", "privacy", "copyright"]),
   name: z.string().trim().min(1).max(120),
@@ -312,6 +322,10 @@ app.get("/sitemap.xml", async (_req, res) => {
   const paths = [
     { path: "/", priority: "1.0", changefreq: "weekly" },
     { path: "/guides", priority: "0.9", changefreq: "daily" },
+    { path: "/repair-manuals", priority: "0.9", changefreq: "weekly" },
+    { path: "/repair-manuals/mclaren", priority: "0.9", changefreq: "weekly" },
+    { path: "/repair-manuals/ferrari", priority: "0.8", changefreq: "monthly" },
+    { path: "/repair-manuals/lamborghini", priority: "0.8", changefreq: "monthly" },
     { path: "/tools/workshop-unit-converter", priority: "0.8", changefreq: "monthly" },
     ...evergreenGuides.map((guide) => ({ path: `/guides/${guide.slug}`, priority: "0.8", changefreq: "monthly" })),
     ...generated.map((post) => ({ path: `/guides/${String(post.slug)}`, priority: "0.8", changefreq: "weekly" })),
@@ -322,7 +336,7 @@ app.get("/sitemap.xml", async (_req, res) => {
 
 app.get("/login", (req: AuthenticatedRequest, res) => {
   if (req.sessionUser) return res.redirect(destinationFor(req.sessionUser));
-  res.send(loginView());
+  res.send(loginView("", req.query.passwordChanged === "1" ? "Password changed. Sign in again with your new password." : ""));
 });
 
 app.get("/register", (req: AuthenticatedRequest, res) => {
@@ -348,6 +362,15 @@ app.get("/guides/:slug", async (req, res) => {
   const html = generatedGuideView(generated, publicSiteOrigin);
   if (!html) {
     res.status(404).send("Guide not found");
+    return;
+  }
+  res.send(html);
+});
+app.get("/repair-manuals", (_req, res) => res.send(repairManualFinderView(publicSiteOrigin, appSiteOrigin)));
+app.get("/repair-manuals/:brand", (req, res) => {
+  const html = repairManualFinderView(publicSiteOrigin, appSiteOrigin, req.params.brand);
+  if (!html) {
+    res.status(404).send("Repair manual catalogue not found");
     return;
   }
   res.send(html);
@@ -421,8 +444,50 @@ app.get("/", (req: AuthenticatedRequest, res) => {
 });
 
 app.get("/access", requireUser, (req: AuthenticatedRequest, res) => {
+  res.redirect("/account");
+});
+
+app.get("/account", requireUser, (req: AuthenticatedRequest, res) => {
   if (req.sessionUser!.role === "admin") return res.redirect("/admin");
-  res.send(accessStatusView(req.sessionUser!));
+  res.send(accessStatusView(req.sessionUser!, {
+    codeNotice: req.query.extended === "1" ? "Authorization code accepted. Your library access has been updated." : "",
+  }));
+});
+
+app.post("/account/redeem-code", requireUser, accountActionLimiter, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  if (req.sessionUser!.role !== "customer") return res.status(403).send("Forbidden");
+  const parsed = authorizationCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).send(accessStatusView(req.sessionUser!, { codeError: "Enter a valid authorization code." }));
+  }
+  const result = await repository.redeemAuthorizationCode(req.sessionUser!.id, parsed.data.authCode);
+  if (result.status === "already-unlimited") {
+    return res.status(400).send(accessStatusView(req.sessionUser!, { codeError: "Your account already has access without an expiry. This code was not used." }));
+  }
+  if (result.status === "invalid") {
+    return res.status(400).send(accessStatusView(req.sessionUser!, { codeError: "That authorization code is invalid or unavailable." }));
+  }
+  res.redirect("/account?extended=1");
+});
+
+app.post("/account/password", requireUser, accountActionLimiter, requireCsrf, async (req: AuthenticatedRequest, res) => {
+  if (req.sessionUser!.role !== "customer") return res.status(403).send("Forbidden");
+  const parsed = passwordChangeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).send(accessStatusView(req.sessionUser!, { passwordError: "Check the current password and enter the same new password twice. The new password must have at least 10 characters." }));
+  }
+  const login = await repository.findLoginUser(req.sessionUser!.email);
+  if (!login || login.id !== req.sessionUser!.id || !verifyPassword(parsed.data.currentPassword, login.passwordHash)) {
+    return res.status(400).send(accessStatusView(req.sessionUser!, { passwordError: "The current password is incorrect." }));
+  }
+  if (verifyPassword(parsed.data.newPassword, login.passwordHash)) {
+    return res.status(400).send(accessStatusView(req.sessionUser!, { passwordError: "Choose a new password that is different from the current password." }));
+  }
+  if (!await repository.changeOwnPassword(req.sessionUser!.id, login.passwordHash, hashPassword(parsed.data.newPassword))) {
+    return res.status(404).send("Not found");
+  }
+  res.setHeader("Set-Cookie", sessionCookie("", 0));
+  res.redirect("/login?passwordChanged=1");
 });
 
 app.get("/vehicles", requireLibraryAccess, async (req: AuthenticatedRequest, res) => {

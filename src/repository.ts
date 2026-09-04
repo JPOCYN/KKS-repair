@@ -61,6 +61,10 @@ export interface LoginUser {
   vipExpiresAt: string | null;
 }
 
+export type AuthorizationCodeRedemption =
+  | { status: "redeemed"; vipExpiresAt: string | null }
+  | { status: "invalid" | "already-unlimited" };
+
 export interface DashboardData {
   counts: Record<string, number>;
   cars: DataRecord[];
@@ -76,6 +80,8 @@ export interface AppRepository {
   getSessionUser(token: string | undefined): Promise<SessionUser | null>;
   createSession(userId: number): Promise<{ token: string; csrfToken: string }>;
   deleteSession(token: string | undefined): Promise<void>;
+  changeOwnPassword(userId: number, currentPasswordHash: string, newPasswordHash: string): Promise<boolean>;
+  redeemAuthorizationCode(userId: number, code: string): Promise<AuthorizationCodeRedemption>;
   registerCustomer(input: { email: string; name: string; authCode: string; passwordHash: string }): Promise<number | null>;
   findLoginUser(email: string): Promise<LoginUser | null>;
   listVisibleVehicles(): Promise<DataRecord[]>;

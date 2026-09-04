@@ -50,6 +50,21 @@ test("SQLite remains the default repository and persists application sessions", 
     assert.equal(updatedMember?.vip_status, 1);
     assert.equal(updatedMember?.vip_expires_at, extended);
     assert.equal((await repository.getSessionUser(blockedCustomerSession.token))?.email, "customer@example.com");
+    await repository.createCode({ code: "EXTEND-ONE-DAY", durationHours: 24, status: true });
+    const redemption = await repository.redeemAuthorizationCode(customerLogin.id, "EXTEND-ONE-DAY");
+    assert.equal(redemption.status, "redeemed");
+    assert.ok(redemption.status === "redeemed" && redemption.vipExpiresAt);
+    assert.equal(Date.parse(redemption.status === "redeemed" ? String(redemption.vipExpiresAt) : ""), Date.parse(extended) + 24 * 60 * 60 * 1000);
+    assert.equal((await repository.redeemAuthorizationCode(customerLogin.id, "EXTEND-ONE-DAY")).status, "invalid");
+    const usedCode = (await repository.listCodes()).find((item) => item.code === "EXTEND-ONE-DAY");
+    assert.equal(Number(usedCode?.redeemed_by_user_id), customerLogin.id);
+    assert.ok(usedCode?.redeemed_at);
+    assert.equal(await repository.changeOwnPassword(customerLogin.id, customerLogin.passwordHash, hashPassword("changed-customer-password")), true);
+    assert.equal(await repository.getSessionUser(blockedCustomerSession.token), null);
+    const changedCustomer = await repository.findLoginUser("customer@example.com");
+    assert.ok(changedCustomer);
+    assert.equal(verifyPassword("customer-test-password", changedCustomer.passwordHash), false);
+    assert.equal(verifyPassword("changed-customer-password", changedCustomer.passwordHash), true);
     await repository.createMember({
       email: "expired@example.com",
       name: "expired@example.com",
@@ -68,6 +83,24 @@ test("SQLite remains the default repository and persists application sessions", 
     assert.equal(expiredSessionUser?.email, "expired@example.com");
     assert.equal(expiredSessionUser?.vipStatus, true);
     assert.equal(expiredSessionUser?.vipExpiresAt, "2020-01-01T00:00:00.000Z");
+    await repository.createCode({ code: "RESTART-TWO-DAYS", durationHours: 48, status: true });
+    const restarted = await repository.redeemAuthorizationCode(expiredLogin.id, "RESTART-TWO-DAYS");
+    assert.equal(restarted.status, "redeemed");
+    assert.ok(restarted.status === "redeemed" && restarted.vipExpiresAt && Date.parse(restarted.vipExpiresAt) > Date.now() + 47 * 60 * 60 * 1000);
+    await repository.createMember({
+      email: "unlimited@example.com",
+      name: "unlimited@example.com",
+      contactAddress: null,
+      passwordHash: hashPassword("unlimited-test-password"),
+      status: true,
+      vipStatus: true,
+      vipExpiresAt: null,
+    });
+    const unlimited = await repository.findLoginUser("unlimited@example.com");
+    assert.ok(unlimited);
+    await repository.createCode({ code: "DO-NOT-CONSUME", durationHours: 24, status: true });
+    assert.equal((await repository.redeemAuthorizationCode(unlimited.id, "DO-NOT-CONSUME")).status, "already-unlimited");
+    assert.equal(Number((await repository.listCodes()).find((item) => item.code === "DO-NOT-CONSUME")?.is_used), 0);
     await repository.createContactRequest({
       name: "Rights Holder",
       email: "rights@example.com",

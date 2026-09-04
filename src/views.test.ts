@@ -15,6 +15,7 @@ import {
   guideView,
   landingView,
   privacyView,
+  repairManualFinderView,
   registerView,
   termsView,
   vehicleDetailView,
@@ -80,7 +81,7 @@ test("customer library shows the remaining access period", () => {
   const html = vehicleListView(expiringUser, []);
   assert.match(html, /Access remaining/);
   assert.match(html, /\d+ days left/);
-  assert.match(html, /href="\/access"/);
+  assert.match(html, /href="\/account"/);
 });
 
 test("public landing page includes SEO, GEO-friendly answers, future coverage, and the site disclaimer", () => {
@@ -133,6 +134,30 @@ test("public guide and converter pages are indexable, structured, and keep prote
   assert.match(converter, /WebApplication/);
 });
 
+test("repair manual checklist builder is useful, indexable, and honest about catalogue coverage", () => {
+  const generic = repairManualFinderView("https://supercardocs.com", "https://app.supercardocs.com");
+  const mclaren = repairManualFinderView("https://supercardocs.com", "https://app.supercardocs.com", "mclaren");
+  const ferrari = repairManualFinderView("https://supercardocs.com", "https://app.supercardocs.com", "ferrari");
+  assert.ok(generic);
+  assert.ok(mclaren);
+  assert.ok(ferrari);
+  assert.match(generic, /Supercar Repair Manual Checklist Builder/);
+  assert.match(generic, /data-manual-finder/);
+  assert.match(generic, /data-finder-checklist/);
+  assert.match(generic, /Copy checklist/);
+  assert.match(generic, /Print/);
+  assert.match(generic, /Vehicle identity and document applicability/);
+  assert.match(generic, /WebApplication/);
+  assert.match(generic, /FAQPage/);
+  assert.match(mclaren, /<link rel="canonical" href="https:\/\/supercardocs\.com\/repair-manuals\/mclaren">/);
+  assert.match(mclaren, /McLaren Repair Manual Checklist Builder/);
+  assert.match(mclaren, /McLaren member catalogue available/);
+  assert.match(ferrari, /Ferrari Repair Manual Checklist Builder/);
+  assert.match(ferrari, /Ferrari member catalogue planned/);
+  assert.match(ferrari, /manuals are not yet available/);
+  assert.equal(repairManualFinderView("https://supercardocs.com", "https://app.supercardocs.com", "unknown"), null);
+});
+
 test("registration and public policy pages provide launch-ready privacy and takedown notices", () => {
   const registration = registerView();
   const privacy = privacyView("https://supercardocs.com");
@@ -169,6 +194,9 @@ test("expired members keep an account status page while the library remains unav
   assert.match(html, /library access has expired/i);
   assert.match(html, /Account[\s\S]*Enabled/);
   assert.match(html, /manual files, and PDFs remain locked/);
+  assert.match(html, /action="\/account\/redeem-code"/);
+  assert.match(html, /action="\/account\/password"/);
+  assert.match(html, /Time remaining/);
 });
 
 test("admin views expose quick code creation and member expiry actions", () => {

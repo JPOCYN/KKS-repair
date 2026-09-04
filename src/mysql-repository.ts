@@ -10,6 +10,7 @@ import mysql, {
 import { hashPassword, verifyPassword } from "./password.js";
 import type {
   AppRepository,
+  AuthorizationCodeRedemption,
   BlogPostInput,
   CodeInput,
   ContactRequestInput,
@@ -159,6 +160,8 @@ export class MySqlRepository implements AppRepository {
         expires_at VARCHAR(64) NULL,
         is_used TINYINT(1) NOT NULL DEFAULT 0,
         status TINYINT(1) NOT NULL DEFAULT 1,
+        redeemed_by_user_id BIGINT NULL,
+        redeemed_at VARCHAR(64) NULL,
         created_at VARCHAR(64) NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
       `CREATE TABLE IF NOT EXISTS manual_menu (
@@ -216,6 +219,14 @@ export class MySqlRepository implements AppRepository {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     ];
     for (const statement of statements) await this.pool.execute(statement);
+    const [codeColumns] = await this.pool.query<QueryRow[]>("SHOW COLUMNS FROM authorization_codes");
+    const codeColumnNames = new Set(codeColumns.map((column) => String(column.Field)));
+    if (!codeColumnNames.has("redeemed_by_user_id")) {
+      await this.pool.execute("ALTER TABLE authorization_codes ADD COLUMN redeemed_by_user_id BIGINT NULL");
+    }
+    if (!codeColumnNames.has("redeemed_at")) {
+      await this.pool.execute("ALTER TABLE authorization_codes ADD COLUMN redeemed_at VARCHAR(64) NULL");
+    }
   }
 
   private async importSqliteIfConfigured(): Promise<void> {
@@ -370,13 +381,92 @@ export class MySqlRepository implements AppRepository {
     if (token) await this.pool.execute("DELETE FROM sessions WHERE token_hash=?", [sha256(token)]);
   }
 
+  async changeOwnPassword(userId: number, currentPasswordHash: string, newPasswordHash: string): Promise<boolean> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [updated] = await connection.execute<ResultSetHeader>(
+        "UPDATE users SET password_hash=? WHERE id=? AND role='customer' AND password_hash=?",
+        [newPasswordHash, userId, currentPasswordHash],
+      );
+      if (updated.affectedRows !== 1) {
+        await connection.rollback();
+        return false;
+      }
+      await connection.execute("DELETE FROM sessions WHERE user_id=?", [userId]);
+      await connection.commit();
+      return true;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async redeemAuthorizationCode(userId: number, value: string): Promise<AuthorizationCodeRedemption> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [users] = await connection.execute<QueryRow[]>(
+        "SELECT vip_status,vip_expires_at FROM users WHERE id=? AND role='customer' AND status=1 FOR UPDATE",
+        [userId],
+      );
+      const user = users[0];
+      if (!user) {
+        await connection.rollback();
+        return { status: "invalid" };
+      }
+      if (Number(user.vip_status) === 1 && !user.vip_expires_at) {
+        await connection.rollback();
+        return { status: "already-unlimited" };
+      }
+      const now = new Date();
+      const [codes] = await connection.execute<QueryRow[]>(`
+        SELECT id,duration_hours FROM authorization_codes
+        WHERE code=? AND status=1 AND is_used=0 AND (expires_at IS NULL OR expires_at>?)
+        FOR UPDATE
+      `, [value, now.toISOString()]);
+      const code = codes[0];
+      if (!code) {
+        await connection.rollback();
+        return { status: "invalid" };
+      }
+      const currentExpiry = user.vip_expires_at ? new Date(String(user.vip_expires_at)) : null;
+      const base = currentExpiry && Number.isFinite(currentExpiry.valueOf()) && currentExpiry > now ? currentExpiry : now;
+      const durationHours = Number(code.duration_hours);
+      const vipExpiresAt = durationHours > 0
+        ? new Date(base.valueOf() + durationHours * 60 * 60 * 1000).toISOString()
+        : null;
+      const redeemedAt = now.toISOString();
+      const [redeemed] = await connection.execute<ResultSetHeader>(`
+        UPDATE authorization_codes SET is_used=1,redeemed_by_user_id=?,redeemed_at=?
+        WHERE id=? AND is_used=0
+      `, [userId, redeemedAt, code.id]);
+      if (redeemed.affectedRows !== 1) throw new Error("Authorization code redemption failed");
+      const [updated] = await connection.execute<ResultSetHeader>(
+        "UPDATE users SET vip_status=1,vip_expires_at=? WHERE id=? AND role='customer'",
+        [vipExpiresAt, userId],
+      );
+      if (updated.affectedRows !== 1) throw new Error("Customer access update failed");
+      await connection.commit();
+      return { status: "redeemed", vipExpiresAt };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   async registerCustomer(input: { email: string; name: string; authCode: string; passwordHash: string }): Promise<number | null> {
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
+      const now = new Date();
       const [rows] = await connection.execute<QueryRow[]>(
-        "SELECT id,duration_hours FROM authorization_codes WHERE code=? AND status=1 AND is_used=0 FOR UPDATE",
-        [input.authCode],
+        "SELECT id,duration_hours FROM authorization_codes WHERE code=? AND status=1 AND is_used=0 AND (expires_at IS NULL OR expires_at>?) FOR UPDATE",
+        [input.authCode, now.toISOString()],
       );
       const code = rows[0];
       if (!code) {
@@ -385,15 +475,15 @@ export class MySqlRepository implements AppRepository {
       }
       const durationHours = Number(code.duration_hours);
       const expiresAt = durationHours > 0
-        ? new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString()
+        ? new Date(now.valueOf() + durationHours * 60 * 60 * 1000).toISOString()
         : null;
       const [created] = await connection.execute<ResultSetHeader>(`
         INSERT INTO users (email,name,password_hash,auth_code,status,vip_status,vip_expires_at,role,created_at)
         VALUES (?,?,?,?,1,1,?,'customer',?)
       `, [input.email, input.name, input.passwordHash, input.authCode, expiresAt, new Date().toISOString()]);
       const [redeemed] = await connection.execute<ResultSetHeader>(
-        "UPDATE authorization_codes SET is_used=1 WHERE id=? AND is_used=0",
-        [code.id],
+        "UPDATE authorization_codes SET is_used=1,redeemed_by_user_id=?,redeemed_at=? WHERE id=? AND is_used=0",
+        [created.insertId, now.toISOString(), code.id],
       );
       if (redeemed.affectedRows !== 1) throw new Error("Authorization code redemption failed");
       await connection.commit();
@@ -597,12 +687,12 @@ export class MySqlRepository implements AppRepository {
   }
 
   async listCodes(): Promise<DataRecord[]> {
-    const [rows] = await this.pool.query<QueryRow[]>("SELECT id,code,duration_hours,is_used,status FROM authorization_codes ORDER BY id DESC");
+    const [rows] = await this.pool.query<QueryRow[]>("SELECT id,code,duration_hours,is_used,status,redeemed_by_user_id,redeemed_at FROM authorization_codes ORDER BY id DESC");
     return asRecords(rows);
   }
 
   async getCode(id: number): Promise<DataRecord | null> {
-    const [rows] = await this.pool.execute<QueryRow[]>("SELECT id,code,duration_hours,is_used,status FROM authorization_codes WHERE id=? LIMIT 1", [id]);
+    const [rows] = await this.pool.execute<QueryRow[]>("SELECT id,code,duration_hours,is_used,status,redeemed_by_user_id,redeemed_at FROM authorization_codes WHERE id=? LIMIT 1", [id]);
     return rows[0] ? { ...rows[0] } : null;
   }
 

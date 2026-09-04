@@ -9,6 +9,7 @@ import {
 } from "./db.js";
 import type {
   AppRepository,
+  AuthorizationCodeRedemption,
   BlogPostInput,
   CodeInput,
   ContactRequestInput,
@@ -67,19 +68,61 @@ export class SqliteRepository implements AppRepository {
     deleteSession(this.database, token);
   }
 
+  async changeOwnPassword(userId: number, currentPasswordHash: string, newPasswordHash: string): Promise<boolean> {
+    return this.database.transaction((): boolean => {
+      const updated = this.database.prepare("UPDATE users SET password_hash=? WHERE id=? AND role='customer' AND password_hash=?")
+        .run(newPasswordHash, userId, currentPasswordHash);
+      if (updated.changes !== 1) return false;
+      this.database.prepare("DELETE FROM sessions WHERE user_id=?").run(userId);
+      return true;
+    })();
+  }
+
+  async redeemAuthorizationCode(userId: number, value: string): Promise<AuthorizationCodeRedemption> {
+    return this.database.transaction((): AuthorizationCodeRedemption => {
+      const user = this.database.prepare("SELECT vip_status,vip_expires_at FROM users WHERE id=? AND role='customer' AND status=1")
+        .get(userId) as { vip_status: number; vip_expires_at: string | null } | undefined;
+      if (!user) return { status: "invalid" };
+      if (user.vip_status === 1 && !user.vip_expires_at) return { status: "already-unlimited" };
+      const now = new Date();
+      const code = this.database.prepare(`
+        SELECT id,duration_hours FROM authorization_codes
+        WHERE code=? AND status=1 AND is_used=0 AND (expires_at IS NULL OR expires_at>?)
+      `).get(value, now.toISOString()) as { id: number; duration_hours: number } | undefined;
+      if (!code) return { status: "invalid" };
+      const currentExpiry = user.vip_expires_at ? new Date(user.vip_expires_at) : null;
+      const base = currentExpiry && Number.isFinite(currentExpiry.valueOf()) && currentExpiry > now ? currentExpiry : now;
+      const vipExpiresAt = code.duration_hours > 0
+        ? new Date(base.valueOf() + code.duration_hours * 60 * 60 * 1000).toISOString()
+        : null;
+      const redeemedAt = now.toISOString();
+      const redeemed = this.database.prepare(`
+        UPDATE authorization_codes SET is_used=1,redeemed_by_user_id=?,redeemed_at=?
+        WHERE id=? AND is_used=0
+      `).run(userId, redeemedAt, code.id);
+      if (redeemed.changes !== 1) throw new Error("Authorization code redemption failed");
+      const updated = this.database.prepare("UPDATE users SET vip_status=1,vip_expires_at=? WHERE id=? AND role='customer'")
+        .run(vipExpiresAt, userId);
+      if (updated.changes !== 1) throw new Error("Customer access update failed");
+      return { status: "redeemed", vipExpiresAt };
+    })();
+  }
+
   async registerCustomer(input: { email: string; name: string; authCode: string; passwordHash: string }): Promise<number | null> {
     return this.database.transaction(() => {
-      const code = this.database.prepare("SELECT id, duration_hours FROM authorization_codes WHERE code=? AND status=1 AND is_used=0")
-        .get(input.authCode) as { id: number; duration_hours: number } | undefined;
+      const now = new Date();
+      const code = this.database.prepare("SELECT id, duration_hours FROM authorization_codes WHERE code=? AND status=1 AND is_used=0 AND (expires_at IS NULL OR expires_at>?)")
+        .get(input.authCode, now.toISOString()) as { id: number; duration_hours: number } | undefined;
       if (!code) return null;
       const vipExpiresAt = code.duration_hours > 0
-        ? new Date(Date.now() + code.duration_hours * 60 * 60 * 1000).toISOString()
+        ? new Date(now.valueOf() + code.duration_hours * 60 * 60 * 1000).toISOString()
         : null;
       const inserted = this.database.prepare(`
         INSERT INTO users (email, name, password_hash, auth_code, status, vip_status, vip_expires_at, role)
         VALUES (?, ?, ?, ?, 1, 1, ?, 'customer')
       `).run(input.email, input.name, input.passwordHash, input.authCode, vipExpiresAt);
-      const redeemed = this.database.prepare("UPDATE authorization_codes SET is_used=1 WHERE id=? AND is_used=0").run(code.id);
+      const redeemed = this.database.prepare("UPDATE authorization_codes SET is_used=1,redeemed_by_user_id=?,redeemed_at=? WHERE id=? AND is_used=0")
+        .run(Number(inserted.lastInsertRowid), now.toISOString(), code.id);
       if (redeemed.changes !== 1) throw new Error("Authorization code redemption failed");
       return Number(inserted.lastInsertRowid);
     })();
@@ -230,11 +273,11 @@ export class SqliteRepository implements AppRepository {
   }
 
   async listCodes(): Promise<DataRecord[]> {
-    return this.database.prepare("SELECT id,code,duration_hours,is_used,status FROM authorization_codes ORDER BY id DESC").all() as DataRecord[];
+    return this.database.prepare("SELECT id,code,duration_hours,is_used,status,redeemed_by_user_id,redeemed_at FROM authorization_codes ORDER BY id DESC").all() as DataRecord[];
   }
 
   async getCode(id: number): Promise<DataRecord | null> {
-    return (this.database.prepare("SELECT id,code,duration_hours,is_used,status FROM authorization_codes WHERE id=?").get(id) as DataRecord | undefined) || null;
+    return (this.database.prepare("SELECT id,code,duration_hours,is_used,status,redeemed_by_user_id,redeemed_at FROM authorization_codes WHERE id=?").get(id) as DataRecord | undefined) || null;
   }
 
   async createCode(input: CodeInput): Promise<void> {

@@ -42,6 +42,8 @@ export interface AuthorizationCodeRow {
   expires_at: string | null;
   is_used: boolean;
   status: boolean;
+  redeemed_by_user_id: number | null;
+  redeemed_at: string | null;
   created_at: string | null;
 }
 
@@ -103,7 +105,7 @@ export type Database = {
       brands: TableDefinition<BrandRow, Omit<BrandRow, "id"> & { id?: number }>;
       cars: TableDefinition<CarRow, Omit<CarRow, "id"> & { id?: number }>;
       app_users: TableDefinition<AppUserRow, Omit<AppUserRow, "id" | "created_at"> & { id?: number; created_at?: string }>;
-      authorization_codes: TableDefinition<AuthorizationCodeRow, Omit<AuthorizationCodeRow, "id"> & { id?: number }>;
+      authorization_codes: TableDefinition<AuthorizationCodeRow, Omit<AuthorizationCodeRow, "id" | "redeemed_by_user_id" | "redeemed_at"> & { id?: number; redeemed_by_user_id?: number | null; redeemed_at?: string | null }>;
       manual_menu: TableDefinition<ManualMenuRow, Omit<ManualMenuRow, "id"> & { id?: number }>;
       app_sessions: TableDefinition<AppSessionRow, Omit<AppSessionRow, "created_at"> & { created_at?: string }>;
       contact_requests: TableDefinition<ContactRequestRow, Omit<ContactRequestRow, "id" | "created_at" | "resolved_at" | "status"> & { id?: number; created_at?: string; resolved_at?: string | null; status?: "open" | "resolved" }>;
@@ -131,6 +133,14 @@ export type Database = {
           p_auth_code: string;
         };
         Returns: number | null;
+      };
+      change_app_password: {
+        Args: { p_user_id: number; p_current_password_hash: string; p_new_password_hash: string };
+        Returns: boolean;
+      };
+      redeem_app_authorization_code: {
+        Args: { p_user_id: number; p_auth_code: string };
+        Returns: { status: "redeemed" | "invalid" | "already-unlimited"; vip_expires_at?: string | null };
       };
     };
     Enums: Record<never, never>;

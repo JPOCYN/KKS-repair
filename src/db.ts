@@ -125,6 +125,8 @@ export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env)
       expires_at TEXT,
       is_used INTEGER NOT NULL DEFAULT 0,
       status INTEGER NOT NULL DEFAULT 1,
+      redeemed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      redeemed_at TEXT,
       created_at TEXT
     );
 
@@ -174,6 +176,7 @@ export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env)
     );
 
     CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS authorization_codes_redeemed_by_idx ON authorization_codes(redeemed_by_user_id);
     CREATE INDEX IF NOT EXISTS manual_menu_car_id_idx ON manual_menu(car_id);
     CREATE INDEX IF NOT EXISTS contact_requests_status_created_idx ON contact_requests(status, created_at DESC);
     CREATE INDEX IF NOT EXISTS blog_posts_status_published_idx ON blog_posts(status, published_at DESC);
@@ -183,6 +186,13 @@ export function initializeDatabase(environment: NodeJS.ProcessEnv = process.env)
   if (!codeColumns.some((column) => column.name === "duration_hours")) {
     db.exec("ALTER TABLE authorization_codes ADD COLUMN duration_hours REAL NOT NULL DEFAULT 0");
   }
+  if (!codeColumns.some((column) => column.name === "redeemed_by_user_id")) {
+    db.exec("ALTER TABLE authorization_codes ADD COLUMN redeemed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
+  }
+  if (!codeColumns.some((column) => column.name === "redeemed_at")) {
+    db.exec("ALTER TABLE authorization_codes ADD COLUMN redeemed_at TEXT");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS authorization_codes_redeemed_by_idx ON authorization_codes(redeemed_by_user_id)");
 
   seedCatalog(db);
   seedManualMenus(db);

@@ -11,7 +11,7 @@ interface PageOptions {
   structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
-const assetVersion = "20260830-seo-content";
+const assetVersion = "20260904-account-center";
 const policyDate = "29 August 2026";
 
 export function escapeHtml(value: unknown): string {
@@ -25,11 +25,9 @@ export function escapeHtml(value: unknown): string {
 
 function page(title: string, content: string, user?: SessionUser | null, options: PageOptions = {}): string {
   const documentTitle = title.includes("Supercar Docs") ? title : `${title} · Supercar Docs`;
-  const memberDestination = user && user.role === "customer" && !hasLibraryAccess(user) ? "/access" : "/vehicles";
-  const memberLabel = memberDestination === "/access" ? "Access status" : "Vehicle library";
   const navigation = user
-    ? `<nav aria-label="Primary navigation"><a href="/">Home</a><a href="${memberDestination}">${memberLabel}</a>${user.role === "admin" ? '<a href="/admin">Administration</a>' : ""}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Sign out</button></form></nav>`
-    : `<nav aria-label="Primary navigation"><a href="/#how-it-works">How it works</a><a href="/#coverage">Coverage</a><a href="/guides">Workshop Guides</a><a href="/#faq">FAQ</a><a class="header-cta" href="/login">Member sign in</a></nav>`;
+    ? `<nav aria-label="Primary navigation"><a href="/">Home</a>${user.role === "customer" && hasLibraryAccess(user) ? '<a href="/vehicles">Vehicle library</a>' : ""}${user.role === "customer" ? '<a href="/account">Account</a>' : '<a href="/admin">Administration</a>'}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}"><button type="submit">Sign out</button></form></nav>`
+    : `<nav aria-label="Primary navigation"><a href="/#how-it-works">How it works</a><a href="/repair-manuals">Manual finder</a><a href="/guides">Workshop Guides</a><a href="/#faq">FAQ</a><a class="header-cta" href="/login">Member sign in</a></nav>`;
   const description = options.description || "Supercar Docs is an independent, protected supercar repair manual and workshop information library.";
   const robots = options.indexable ? "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" : "noindex,nofollow";
   const canonical = options.canonicalUrl ? `<link rel="canonical" href="${escapeHtml(options.canonicalUrl)}">` : "";
@@ -42,7 +40,7 @@ function page(title: string, content: string, user?: SessionUser | null, options
   const structuredData = options.structuredData
     ? `<script type="application/ld+json">${JSON.stringify(options.structuredData).replaceAll("<", "\\u003c")}</script>`
     : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><meta name="application-name" content="Supercar Docs"><title>${escapeHtml(documentTitle)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${robots}">${canonical}${social}${structuredData}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css?v=${assetVersion}"><script src="/app.js?v=${assetVersion}" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="Supercar Docs home"><img class="brand-mark" src="/favicon.svg" alt=""><span><strong>Supercar Docs</strong><small>Repair manual library</small></span></a>${navigation}</header><main>${content}</main><footer><div class="footer-summary"><span class="footer-brand">Supercar Docs</span><span>Independent multi-brand service information platform.</span><nav class="footer-links" aria-label="Resources, legal, and support"><a href="/guides">Workshop Guides</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/contact">Contact &amp; takedown</a></nav></div><p class="footer-disclaimer"><strong>Independent content notice:</strong> Information on this website is collected from publicly available online sources for reference. Supercar Docs does not own, represent, endorse, or claim affiliation with any vehicle manufacturer or brand. All brand names, trademarks, documents, and related rights belong to their respective owners. Rights holders may submit a review or removal request through our <a href="/contact">takedown process</a>.</p></footer></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0c10"><meta name="application-name" content="Supercar Docs"><title>${escapeHtml(documentTitle)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${robots}">${canonical}${social}${structuredData}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css?v=${assetVersion}"><script src="/app.js?v=${assetVersion}" defer></script></head><body><header class="site-header"><a class="brand" href="/" aria-label="Supercar Docs home"><img class="brand-mark" src="/favicon.svg" alt=""><span><strong>Supercar Docs</strong><small>Repair manual library</small></span></a>${navigation}</header><main>${content}</main><footer><div class="footer-summary"><span class="footer-brand">Supercar Docs</span><span>Independent multi-brand service information platform.</span><nav class="footer-links" aria-label="Resources, legal, and support"><a href="/repair-manuals">Manual Finder</a><a href="/guides">Workshop Guides</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/contact">Contact &amp; takedown</a></nav></div><p class="footer-disclaimer"><strong>Independent content notice:</strong> Information on this website is collected from publicly available online sources for reference. Supercar Docs does not own, represent, endorse, or claim affiliation with any vehicle manufacturer or brand. All brand names, trademarks, documents, and related rights belong to their respective owners. Rights holders may submit a review or removal request through our <a href="/contact">takedown process</a>.</p></footer></body></html>`;
 }
 
 function accessTimeRemaining(user: SessionUser, now = Date.now()): string {
@@ -168,7 +166,7 @@ export function landingView(user: SessionUser | undefined, siteOrigin: string, a
       },
     ],
   };
-  const destinationPath = user ? (user.role === "admin" ? "/admin" : hasLibraryAccess(user) ? "/vehicles" : "/access") : "/login";
+  const destinationPath = user ? (user.role === "admin" ? "/admin" : hasLibraryAccess(user) ? "/vehicles" : "/account") : "/login";
   const destination = new URL(destinationPath, appOrigin).toString();
   const registrationUrl = new URL("/login#register", appOrigin).toString();
   const action = user ? "Open your workspace" : "Explore member access";
@@ -223,7 +221,7 @@ export function landingView(user: SessionUser | undefined, siteOrigin: string, a
     </section>
     <section class="trust-panel" aria-labelledby="trust-heading"><div><span class="section-label">Independent and transparent</span><h2 id="trust-heading">Useful workshop access without pretending to be a manufacturer.</h2></div><div class="trust-grid"><article><strong>Independent platform</strong><p>Supercar Docs is not affiliated with or endorsed by any vehicle manufacturer.</p></article><article><strong>Protected source library</strong><p>Original manual files and technical PDFs require an active member account.</p></article><article><strong>Clear coverage status</strong><p>Brands are marked available only when their recovered catalogue is actually ready.</p></article></div></section>
     <section class="repair-preview-section" aria-labelledby="repair-preview-heading"><div class="repair-preview-heading"><span class="section-label">Helpful public previews</span><h2 id="repair-preview-heading">Common McLaren workshop questions, explained clearly.</h2><p>These original summaries help technicians understand the library's coverage while keeping manufacturer procedures, specifications, and documents inside the protected member application.</p></div><div class="repair-preview-grid">${previewCards}</div></section>
-    <section class="landing-resources" aria-labelledby="landing-resources-heading"><div class="landing-resources__copy"><span class="section-label">Free workshop resources</span><h2 id="landing-resources-heading">Useful before you sign in.</h2><p>Read original service-information guides or convert common workshop units. These public resources contain no protected manual pages or vehicle specifications.</p><div class="landing-actions"><a class="primary button" href="/guides">Browse workshop guides</a><a class="secondary button" href="/tools/workshop-unit-converter">Open unit converter</a></div></div><img src="/workshop-diagnostics.jpg" alt="Digital diagnostics beside a fictional unbranded supercar" width="1536" height="1024" loading="lazy"></section>
+    <section class="landing-resources" aria-labelledby="landing-resources-heading"><div class="landing-resources__copy"><span class="section-label">Free workshop resources</span><h2 id="landing-resources-heading">Useful before you sign in.</h2><p>Build a repair-document checklist, read original service-information guides, or convert common workshop units. These public resources contain no protected manual pages or vehicle specifications.</p><div class="landing-actions"><a class="primary button" href="/repair-manuals">Build a repair checklist</a><a class="secondary button" href="/guides">Browse workshop guides</a><a class="secondary button" href="/tools/workshop-unit-converter">Open unit converter</a></div></div><img src="/workshop-diagnostics.jpg" alt="Digital diagnostics beside a fictional unbranded supercar" width="1536" height="1024" loading="lazy"></section>
     <section id="faq" class="faq-section"><div><span class="section-label">Supercar Docs explained</span><h2>Questions workshop professionals ask before joining.</h2><p>Short, direct answers about coverage, access, and independence.</p></div><div class="faq-list">${faqMarkup}</div></section>
     <section class="landing-cta"><div><span class="section-label">Your next procedure, without the folder hunt</span><h2>Open the protected workshop library.</h2><p>Sign in with an existing Supercar Docs account or activate access with an unused authorization code.</p></div><div class="landing-actions"><a class="primary button" href="${destination}">${action} <span aria-hidden="true">→</span></a>${user ? "" : `<a class="secondary button" href="${registrationUrl}">Create an account</a>`}</div></section>`,
     user,
@@ -268,7 +266,7 @@ export function guideIndexView(records: Array<Record<string, unknown>>, siteOrig
     description,
     hasPart: guides.map((guide) => ({ "@type": "Article", headline: guide.title, url: new URL(`/guides/${guide.slug}`, siteOrigin).toString() })),
   };
-  return page("Supercar Workshop Guides | Supercar Docs", `<section class="resource-hero"><span class="section-label">Independent workshop intelligence</span><h1>Supercar service-information guides.</h1><p>Original, search-informed explanations for finding and using workshop information safely. Full manuals, proprietary specifications, and technical PDFs remain protected.</p></section><nav class="resource-nav" aria-label="Public resources"><a class="is-active" href="/guides">Workshop guides</a><a href="/tools/workshop-unit-converter">Unit converter</a></nav><section class="guide-grid">${guideCards(guides)}</section>`, undefined, { canonicalUrl, description, indexable: true, structuredData });
+  return page("Supercar Workshop Guides | Supercar Docs", `<section class="resource-hero"><span class="section-label">Independent workshop intelligence</span><h1>Supercar service-information guides.</h1><p>Original, search-informed explanations for finding and using workshop information safely. Full manuals, proprietary specifications, and technical PDFs remain protected.</p></section><nav class="resource-nav" aria-label="Public resources"><a href="/repair-manuals">Checklist builder</a><a class="is-active" href="/guides">Workshop guides</a><a href="/tools/workshop-unit-converter">Unit converter</a></nav><section class="guide-grid">${guideCards(guides)}</section>`, undefined, { canonicalUrl, description, indexable: true, structuredData });
 }
 
 function guideBody(guide: PublicGuide): string {
@@ -310,11 +308,137 @@ export function workshopConverterView(siteOrigin: string): string {
   const canonicalUrl = new URL("/tools/workshop-unit-converter", siteOrigin).toString();
   const description = "Free workshop unit converter for torque, pressure, temperature, length, and mass. Convert Nm, lb-ft, bar, psi, Celsius, Fahrenheit, mm, inches, kg, and lb.";
   const converter = (label: string, unitA: string, unitB: string, factor: string) => `<article class="converter-card" data-converter data-factor="${factor}"><h2>${escapeHtml(label)}</h2><div><label>${escapeHtml(unitA)}<input type="number" step="any" inputmode="decimal" data-converter-a aria-label="${escapeHtml(unitA)} value"></label><span aria-hidden="true">⇄</span><label>${escapeHtml(unitB)}<input type="number" step="any" inputmode="decimal" data-converter-b aria-label="${escapeHtml(unitB)} value"></label></div><button type="button" data-converter-clear>Clear</button></article>`;
-  return page("Workshop Unit Converter | Supercar Docs", `<section class="resource-hero"><span class="section-label">Free workshop tool</span><h1>Workshop unit converter.</h1><p>Convert common units quickly. This calculator is for unit conversion only and does not supply or validate any vehicle specification.</p></section><nav class="resource-nav" aria-label="Public resources"><a href="/guides">Workshop guides</a><a class="is-active" href="/tools/workshop-unit-converter">Unit converter</a></nav><section class="converter-grid">${converter("Torque", "Nm", "lb-ft", "0.7375621493")}${converter("Pressure", "bar", "psi", "14.5037738")}${converter("Length", "mm", "in", "0.03937007874")}${converter("Mass", "kg", "lb", "2.2046226218")}<article class="converter-card" data-temperature-converter><h2>Temperature</h2><div><label>°C<input type="number" step="any" inputmode="decimal" data-temperature-c aria-label="Celsius value"></label><span aria-hidden="true">⇄</span><label>°F<input type="number" step="any" inputmode="decimal" data-temperature-f aria-label="Fahrenheit value"></label></div><button type="button" data-temperature-clear>Clear</button></article></section><section class="tool-note"><h2>Use the correct source value</h2><p>A converted number is only as reliable as its source. Confirm the exact vehicle, component, procedure, unit, and rounding requirement in current service information before applying any workshop specification.</p></section>`, undefined, { canonicalUrl, description, indexable: true, structuredData: { "@context": "https://schema.org", "@type": "WebApplication", name: "Supercar Docs Workshop Unit Converter", url: canonicalUrl, applicationCategory: "UtilitiesApplication", operatingSystem: "Any", isAccessibleForFree: true, description } });
+  return page("Workshop Unit Converter | Supercar Docs", `<section class="resource-hero"><span class="section-label">Free workshop tool</span><h1>Workshop unit converter.</h1><p>Convert common units quickly. This calculator is for unit conversion only and does not supply or validate any vehicle specification.</p></section><nav class="resource-nav" aria-label="Public resources"><a href="/repair-manuals">Checklist builder</a><a href="/guides">Workshop guides</a><a class="is-active" href="/tools/workshop-unit-converter">Unit converter</a></nav><section class="converter-grid">${converter("Torque", "Nm", "lb-ft", "0.7375621493")}${converter("Pressure", "bar", "psi", "14.5037738")}${converter("Length", "mm", "in", "0.03937007874")}${converter("Mass", "kg", "lb", "2.2046226218")}<article class="converter-card" data-temperature-converter><h2>Temperature</h2><div><label>°C<input type="number" step="any" inputmode="decimal" data-temperature-c aria-label="Celsius value"></label><span aria-hidden="true">⇄</span><label>°F<input type="number" step="any" inputmode="decimal" data-temperature-f aria-label="Fahrenheit value"></label></div><button type="button" data-temperature-clear>Clear</button></article></section><section class="tool-note"><h2>Use the correct source value</h2><p>A converted number is only as reliable as its source. Confirm the exact vehicle, component, procedure, unit, and rounding requirement in current service information before applying any workshop specification.</p></section>`, undefined, { canonicalUrl, description, indexable: true, structuredData: { "@context": "https://schema.org", "@type": "WebApplication", name: "Supercar Docs Workshop Unit Converter", url: canonicalUrl, applicationCategory: "UtilitiesApplication", operatingSystem: "Any", isAccessibleForFree: true, description } });
+}
+
+type RepairManualBrandSlug = "mclaren" | "ferrari" | "lamborghini";
+
+const repairManualBrands: Record<RepairManualBrandSlug, {
+  name: string;
+  available: boolean;
+  models: string[];
+  title: string;
+  heading: string;
+  description: string;
+  answer: string;
+}> = {
+  mclaren: {
+    name: "McLaren",
+    available: true,
+    models: ["750S", "750S Spider", "Artura", "Artura Spider", "720S", "720S Spider", "Senna", "Speedtail", "GT", "570GT", "570S", "570S Spider", "540C", "620R", "650S", "650S Spider", "625C", "625C Spider", "12C", "12C Spider", "P1"],
+    title: "McLaren Repair Manual Checklist Builder | Supercar Docs",
+    heading: "Build a McLaren repair-document checklist.",
+    description: "Build a practical McLaren repair manual checklist by model, year, system, and job type before workshop work begins. Verified member coverage is available now.",
+    answer: "McLaren repair manual coverage is available now for 21 vehicle entries. Build a job-specific checklist of the procedures, diagrams, torque references, and verification documents to collect before work begins.",
+  },
+  ferrari: {
+    name: "Ferrari",
+    available: false,
+    models: [],
+    title: "Ferrari Repair Manual Checklist Builder | Supercar Docs",
+    heading: "Build a Ferrari repair-document checklist.",
+    description: "Build a practical Ferrari repair manual checklist by vehicle, system, and job type, and check the current Supercar Docs catalogue status.",
+    answer: "Use the checklist builder to plan the repair information a Ferrari workshop job requires. Ferrari manuals are not yet available in the member library and will only be marked available after verification.",
+  },
+  lamborghini: {
+    name: "Lamborghini",
+    available: false,
+    models: [],
+    title: "Lamborghini Repair Manual Checklist Builder | Supercar Docs",
+    heading: "Build a Lamborghini repair-document checklist.",
+    description: "Build a practical Lamborghini repair manual checklist by vehicle, system, and job type, and check the current Supercar Docs catalogue status.",
+    answer: "Use the checklist builder to plan the repair information a Lamborghini workshop job requires. Lamborghini manuals are not yet available in the member library and will only be marked available after verification.",
+  },
+};
+
+export function repairManualFinderView(siteOrigin: string, appOrigin = siteOrigin, requestedBrand = ""): string | null {
+  const brandSlug = requestedBrand.toLowerCase() as RepairManualBrandSlug;
+  if (requestedBrand && !repairManualBrands[brandSlug]) return null;
+  const selectedSlug: RepairManualBrandSlug = requestedBrand ? brandSlug : "mclaren";
+  const selected = repairManualBrands[selectedSlug];
+  const canonicalPath = requestedBrand ? `/repair-manuals/${selectedSlug}` : "/repair-manuals";
+  const canonicalUrl = new URL(canonicalPath, siteOrigin).toString();
+  const memberUrl = new URL("/login", appOrigin).toString();
+  const genericTitle = "Supercar Repair Manual Checklist Builder | Supercar Docs";
+  const genericDescription = "Build a practical supercar repair manual checklist by marque, model, year, system, and job type. Plan the documents to gather before workshop work begins.";
+  const title = requestedBrand ? selected.title : genericTitle;
+  const description = requestedBrand ? selected.description : genericDescription;
+  const heading = requestedBrand ? selected.heading : "Plan the manual documents before the car goes on the lift.";
+  const intro = requestedBrand
+    ? selected.answer
+    : "Choose the vehicle, system, and job type. The builder creates a prioritized document checklist you can copy or print for the workshop job card.";
+  const faqItems = [
+    {
+      question: "Are McLaren repair manuals available?",
+      answer: "Yes. Supercar Docs currently has verified protected coverage for 21 McLaren vehicle entries, including repair instructions, system descriptions, wiring information, torque references, diagrams, and technical PDFs.",
+    },
+    {
+      question: "Are Ferrari repair manuals available?",
+      answer: "Not yet. Ferrari repair manual coverage is planned, but it will not be marked available until the documents and catalogue navigation are verified.",
+    },
+    {
+      question: "Are Lamborghini repair manuals available?",
+      answer: "Not yet. Lamborghini repair manual coverage is planned, but it will not be marked available until the documents and catalogue navigation are verified.",
+    },
+    {
+      question: "Does the checklist builder publish repair procedures or specifications?",
+      answer: "No. The public builder plans which document types to collect and reports catalogue availability. Protected procedures, specifications, diagrams, and PDFs remain inside the member library.",
+    },
+  ];
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        name: "Supercar Docs Repair Manual Checklist Builder",
+        url: canonicalUrl,
+        applicationCategory: "UtilitiesApplication",
+        operatingSystem: "Any",
+        isAccessibleForFree: true,
+        description,
+        about: requestedBrand ? `${selected.name} repair manuals` : ["McLaren repair manuals", "Ferrari repair manuals", "Lamborghini repair manuals"],
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: faqItems.map((item) => ({ "@type": "Question", name: item.question, acceptedAnswer: { "@type": "Answer", text: item.answer } })),
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: new URL("/", siteOrigin).toString() },
+          { "@type": "ListItem", position: 2, name: "Repair manual finder", item: new URL("/repair-manuals", siteOrigin).toString() },
+          ...(requestedBrand ? [{ "@type": "ListItem", position: 3, name: selected.name, item: canonicalUrl }] : []),
+        ],
+      },
+    ],
+  };
+  const modelOptions = repairManualBrands.mclaren.models.map((model) => `<option value="${escapeHtml(model)}" data-brand="mclaren"${selectedSlug === "mclaren" && model === "750S" ? " selected" : ""}>${escapeHtml(model)}</option>`).join("");
+  const brandCards = (Object.entries(repairManualBrands) as Array<[RepairManualBrandSlug, typeof selected]>).map(([slug, brand]) => `<a class="manual-brand-card${brand.available ? " is-available" : ""}${slug === selectedSlug && requestedBrand ? " is-current" : ""}" href="/repair-manuals/${slug}"><span>${brand.available ? "Verified coverage" : "Planned catalogue"}</span><strong>${escapeHtml(brand.name)} repair manuals</strong><small>${brand.available ? `${brand.models.length} vehicle entries available` : "Availability not yet announced"}</small></a>`).join("");
+  const modelYearOptions = ["Confirm from VIN", ...Array.from({ length: 16 }, (_, index) => String(2026 - index))].map((year) => `<option value="${year}">${year}</option>`).join("");
+  const initialModel = selected.available ? "750S" : `${selected.name} model`;
+  const initialResultTitle = `${selected.name} ${initialModel} brake repair document checklist`;
+  const initialResultCopy = "Gather and verify each item against the exact VIN, model year, market, and fitted equipment before work begins.";
+  const initialResultStatus = selected.available ? "McLaren member catalogue available" : `${selected.name} member catalogue planned`;
+  const initialActionUrl = selected.available ? memberUrl : "/guides";
+  const initialActionLabel = selected.available ? "Locate documents in member library" : "Browse free workshop guides";
+  const initialChecklist = [
+    "Vehicle identity and document applicability: VIN, model year, market, body style, and fitted options",
+    "Workshop safety, vehicle lifting, and brake-system isolation information",
+    "Brake system description and relevant warnings",
+    "Component removal and installation procedure",
+    "Fastener torque references, tightening sequence, and one-time-use hardware notes",
+    "Approved consumables and fluid information from the current source",
+    "Bleeding, setup, or calibration procedure when the work requires it",
+    "Post-repair inspection, fault check, and functional verification",
+  ];
+  const faqMarkup = faqItems.map((item) => `<details><summary>${escapeHtml(item.question)}</summary><p>${escapeHtml(item.answer)}</p></details>`).join("");
+
+  return page(title, `<section class="finder-hero"><div><a class="back-link" href="/">← Supercar Docs</a><span class="section-label">Free workshop planning tool</span><h1>${escapeHtml(heading)}</h1><p>${escapeHtml(intro)}</p></div><div class="finder-proof"><span><strong>21</strong> verified McLaren entries</span><span><strong>8</strong> workshop systems</span><span><strong>1 click</strong> to copy the job checklist</span></div></section><nav class="resource-nav" aria-label="Public resources"><a class="is-active" href="/repair-manuals">Checklist builder</a><a href="/guides">Workshop guides</a><a href="/tools/workshop-unit-converter">Unit converter</a></nav><section class="manual-finder" data-manual-finder data-member-url="${escapeHtml(memberUrl)}"><div class="manual-finder__form"><div><span class="section-label">01 · Define the job</span><h2>What is coming into the workshop?</h2><p>Select the closest match. The builder plans which source documents to collect; it never invents a procedure or specification.</p></div><div class="manual-finder__fields"><label>Marque<select data-finder-brand aria-label="Vehicle marque"><option value="mclaren"${selectedSlug === "mclaren" ? " selected" : ""}>McLaren</option><option value="ferrari"${selectedSlug === "ferrari" ? " selected" : ""}>Ferrari</option><option value="lamborghini"${selectedSlug === "lamborghini" ? " selected" : ""}>Lamborghini</option></select></label><label>Model<select data-finder-model aria-label="Vehicle model">${modelOptions}<option value="Ferrari model" data-brand="ferrari"${selectedSlug === "ferrari" ? " selected" : ""}>Model to be confirmed</option><option value="Lamborghini model" data-brand="lamborghini"${selectedSlug === "lamborghini" ? " selected" : ""}>Model to be confirmed</option></select></label><label>Model year<select data-finder-year aria-label="Model year">${modelYearOptions}</select></label><label>System or job area<select data-finder-system aria-label="Workshop system"><option value="brakes">Brakes</option><option value="electrical">Electrical &amp; diagnostics</option><option value="suspension">Suspension &amp; steering</option><option value="powertrain">Engine &amp; transmission</option><option value="cooling">Cooling system</option><option value="hvac">Air conditioning</option><option value="body">Body, doors &amp; interior</option><option value="adas">Driver assistance &amp; calibration</option></select></label><label>Type of work<select data-finder-task aria-label="Type of workshop work"><option value="remove-replace">Remove or replace a component</option><option value="diagnose">Diagnose a fault</option><option value="inspect-service">Inspect or service</option><option value="setup-calibrate">Set up or calibrate</option></select></label></div></div><aside class="manual-finder__result${selected.available ? " is-available" : ""}" data-finder-result><span class="finder-status" data-finder-status>${escapeHtml(initialResultStatus)}</span><strong data-finder-title>${escapeHtml(initialResultTitle)}</strong><p data-finder-copy>${escapeHtml(initialResultCopy)}</p><ol class="manual-checklist" data-finder-checklist aria-live="polite">${initialChecklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol><div class="finder-result-actions"><button class="secondary button" type="button" data-finder-copy>Copy checklist</button><button class="secondary button" type="button" data-finder-print>Print</button><span data-finder-copy-status aria-live="polite"></span></div><a class="finder-library-link" data-finder-action href="${escapeHtml(initialActionUrl)}">${escapeHtml(initialActionLabel)} <span aria-hidden="true">→</span></a><small>This planning checklist is not a repair procedure. Confirm every item in current, vehicle-specific service information before work.</small></aside></section><section class="manual-brand-grid" aria-labelledby="manual-brand-heading"><div class="manual-brand-grid__heading"><span class="section-label">Build by marque</span><h2 id="manual-brand-heading">Use the checklist even when the library is still planned.</h2><p>The planning tool works for all three marques. Each marque page also states honestly whether matching documents are available inside Supercar Docs today.</p></div><div>${brandCards}</div></section><section class="finder-explainer"><div><span class="section-label">Why workshops use a document plan</span><h2>A safer path than one isolated search result.</h2></div><ol><li><strong>Confirm the exact vehicle.</strong><span>Use the VIN, model year, body style, market, and fitted equipment—not only the badge.</span></li><li><strong>Gather the whole document set.</strong><span>Pair the main procedure with safety, system, wiring, torque, consumables, calibration, and post-check information.</span></li><li><strong>Verify inside the complete source.</strong><span>Check applicability, warnings, supersessions, one-time hardware, and related documents before work begins.</span></li></ol></section><section class="faq-section finder-faq"><div><span class="section-label">Repair manual availability FAQ</span><h2>Clear answers for technicians.</h2><p>Short, factual answers about current catalogue coverage. No proprietary procedures or specifications are reproduced here.</p></div><div class="faq-list">${faqMarkup}</div></section>`, undefined, { canonicalUrl, description, indexable: true, structuredData, socialImageUrl: new URL("/supercar-workshop-hero.jpg", siteOrigin).toString(), socialImageAlt: "Fictional supercar in an independent specialist workshop" });
 }
 
 interface AuthPortalOptions {
   loginError?: string;
+  loginNotice?: string;
   registerError?: string;
   registerValues?: Record<string, unknown>;
 }
@@ -322,26 +446,35 @@ interface AuthPortalOptions {
 export function authPortalView(options: AuthPortalOptions = {}): string {
   const values = options.registerValues || {};
   const registerActive = Boolean(options.registerError);
-  return page("Member access", `<section class="auth-portal"><div class="auth-portal__intro"><span class="section-label">Protected workshop access</span><h1>Access Supercar Docs.</h1><p>Sign in to your account or create one with an unused authorization code.</p></div><div class="auth-shell" data-auth-portal data-default-auth-tab="${registerActive ? "register" : "signin"}"><div class="auth-switch" role="tablist" aria-label="Member access"><button type="button" role="tab" id="signin-tab" aria-controls="signin" aria-selected="${String(!registerActive)}" class="${registerActive ? "" : "is-active"}" data-auth-tab="signin">Sign in</button><button type="button" role="tab" id="register-tab" aria-controls="register" aria-selected="${String(registerActive)}" class="${registerActive ? "is-active" : ""}" data-auth-tab="register">Sign up</button></div><section class="auth-card" id="signin" role="tabpanel" aria-labelledby="signin-tab"${registerActive ? " hidden" : ""}><div class="card-heading"><span class="section-label">Existing member</span><h2>Sign in</h2><p>Continue to your account and repair library.</p></div>${options.loginError ? `<div class="alert" role="alert">${escapeHtml(options.loginError)}</div>` : ""}<form method="post" action="/login" class="stack"><label>Email address<input name="email" type="email" autocomplete="username" placeholder="name@example.com" required></label><label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="primary" type="submit">Sign in to Supercar Docs</button></form></section><section class="auth-card auth-card--register" id="register" role="tabpanel" aria-labelledby="register-tab"${registerActive ? "" : " hidden"}><div class="card-heading"><span class="section-label">New member</span><h2>Create account</h2><p>Use your email and an unused authorization code. No profile name is required.</p></div>${options.registerError ? `<div class="alert" role="alert">${escapeHtml(options.registerError)}</div>` : ""}<form method="post" action="/register" class="stack"><label>Email address<input name="email" type="email" autocomplete="email" value="${escapeHtml(values.email)}" required></label><label>Authorization code<input name="authCode" autocomplete="off" maxlength="100" value="${escapeHtml(values.authCode)}" required></label><label>Password <small>Minimum 10 characters</small><input name="password" type="password" autocomplete="new-password" minlength="10" required></label><label class="consent-check"><input name="acceptPolicies" type="checkbox" value="yes" required><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a> and acknowledge the <a href="/privacy" target="_blank" rel="noopener">Privacy and Personal Information Collection Statement</a>.</span></label><button class="primary" type="submit">Create account</button></form><p class="collection-notice"><strong>Why we collect this data:</strong> your email identifies and secures your account, controls access, and allows account support.</p></section></div></section>`);
+  return page("Member access", `<section class="auth-portal"><div class="auth-portal__intro"><span class="section-label">Protected workshop access</span><h1>Access Supercar Docs.</h1><p>Sign in to your account or create one with an unused authorization code.</p></div><div class="auth-shell" data-auth-portal data-default-auth-tab="${registerActive ? "register" : "signin"}"><div class="auth-switch" role="tablist" aria-label="Member access"><button type="button" role="tab" id="signin-tab" aria-controls="signin" aria-selected="${String(!registerActive)}" class="${registerActive ? "" : "is-active"}" data-auth-tab="signin">Sign in</button><button type="button" role="tab" id="register-tab" aria-controls="register" aria-selected="${String(registerActive)}" class="${registerActive ? "is-active" : ""}" data-auth-tab="register">Sign up</button></div><section class="auth-card" id="signin" role="tabpanel" aria-labelledby="signin-tab"${registerActive ? " hidden" : ""}><div class="card-heading"><span class="section-label">Existing member</span><h2>Sign in</h2><p>Continue to your account and repair library.</p></div>${options.loginNotice ? `<div class="success" role="status">${escapeHtml(options.loginNotice)}</div>` : ""}${options.loginError ? `<div class="alert" role="alert">${escapeHtml(options.loginError)}</div>` : ""}<form method="post" action="/login" class="stack"><label>Email address<input name="email" type="email" autocomplete="username" placeholder="name@example.com" required></label><label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="primary" type="submit">Sign in to Supercar Docs</button></form></section><section class="auth-card auth-card--register" id="register" role="tabpanel" aria-labelledby="register-tab"${registerActive ? "" : " hidden"}><div class="card-heading"><span class="section-label">New member</span><h2>Create account</h2><p>Use your email and an unused authorization code. No profile name is required.</p></div>${options.registerError ? `<div class="alert" role="alert">${escapeHtml(options.registerError)}</div>` : ""}<form method="post" action="/register" class="stack"><label>Email address<input name="email" type="email" autocomplete="email" value="${escapeHtml(values.email)}" required></label><label>Authorization code<input name="authCode" autocomplete="off" maxlength="100" value="${escapeHtml(values.authCode)}" required></label><label>Password <small>Minimum 10 characters</small><input name="password" type="password" autocomplete="new-password" minlength="10" required></label><label class="consent-check"><input name="acceptPolicies" type="checkbox" value="yes" required><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a> and acknowledge the <a href="/privacy" target="_blank" rel="noopener">Privacy and Personal Information Collection Statement</a>.</span></label><button class="primary" type="submit">Create account</button></form><p class="collection-notice"><strong>Why we collect this data:</strong> your email identifies and secures your account, controls access, and allows account support.</p></section></div></section>`);
 }
 
-export function loginView(error = ""): string {
-  return authPortalView({ loginError: error });
+export function loginView(error = "", notice = ""): string {
+  return authPortalView({ loginError: error, loginNotice: notice });
 }
 
 export function registerView(error = "", values: Record<string, unknown> = {}): string {
   return authPortalView({ registerError: error, registerValues: values });
 }
 
-export function accessStatusView(user: SessionUser): string {
+interface AccountViewOptions {
+  codeNotice?: string;
+  codeError?: string;
+  passwordError?: string;
+}
+
+export function accessStatusView(user: SessionUser, options: AccountViewOptions = {}): string {
   const state = libraryAccessState(user);
   const expiry = user.vipExpiresAt ? dateValue(user.vipExpiresAt) : "No expiry set";
   const active = state === "active";
   const heading = active ? "Your library is ready" : state === "expired" ? "Your library access has expired" : "Your library access is inactive";
   const detail = active
-    ? "Your account and library access are active. You can open the vehicle catalogue and protected manuals."
-    : "Your account is still enabled, so you can sign in and view this status. Vehicle pages, manual files, and PDFs remain locked until an administrator renews or activates library access.";
-  return page("Access status", `<section class="access-status"><span class="section-label">Member account</span><h1>${heading}</h1><p>${detail}</p><dl><div><dt>Account</dt><dd><span class="status-pill status-pill--active">Enabled</span></dd></div><div><dt>Library access</dt><dd><span class="status-pill status-pill--${active ? "active" : state === "expired" ? "warning" : "disabled"}">${active ? "Active" : state === "expired" ? "Expired" : "Off"}</span></dd></div><div><dt>Expiry</dt><dd>${escapeHtml(expiry)}</dd></div></dl><div class="landing-actions">${active ? '<a class="primary button" href="/vehicles">Open vehicle library</a>' : '<a class="primary button" href="/contact">Request access help</a>'}<a class="secondary button" href="/">Return home</a></div></section>`, user);
+    ? "Your account and protected workshop library are active."
+    : "Your account remains enabled, but vehicle pages, manual files, and PDFs remain locked until access is extended.";
+  const status = `<section class="access-status account-summary"><span class="section-label">Member account</span><h1>${heading}</h1><p>${detail}</p><dl><div><dt>Email</dt><dd>${escapeHtml(user.email)}</dd></div><div><dt>Account</dt><dd><span class="status-pill status-pill--active">Enabled</span></dd></div><div><dt>Library access</dt><dd><span class="status-pill status-pill--${active ? "active" : state === "expired" ? "warning" : "disabled"}">${active ? "Active" : state === "expired" ? "Expired" : "Off"}</span></dd></div><div><dt>Time remaining</dt><dd>${escapeHtml(accessTimeRemaining(user))}</dd></div><div><dt>Expiry</dt><dd>${escapeHtml(expiry)}</dd></div></dl>${active ? '<a class="primary button" href="/vehicles">Open vehicle library</a>' : ""}</section>`;
+  const extend = `<section class="account-card"><div class="card-heading"><span class="section-label">Extend access</span><h2>Activate a new code</h2><p>An active subscription is extended from its current expiry. Expired access starts again from today.</p></div>${options.codeNotice ? `<div class="success" role="status">${escapeHtml(options.codeNotice)}</div>` : ""}${options.codeError ? `<div class="alert" role="alert">${escapeHtml(options.codeError)}</div>` : ""}<form method="post" action="/account/redeem-code" class="stack">${csrf(user)}<label>Authorization code<input name="authCode" autocomplete="off" maxlength="100" required></label><button class="primary" type="submit">Activate code</button></form><p class="collection-notice">Each code can be used once. Used codes remain in the administrator audit history.</p></section>`;
+  const security = `<section class="account-card"><div class="card-heading"><span class="section-label">Security</span><h2>Change password</h2><p>Changing your password signs out every active session, including this one.</p></div>${options.passwordError ? `<div class="alert" role="alert">${escapeHtml(options.passwordError)}</div>` : ""}<form method="post" action="/account/password" class="stack">${csrf(user)}<label>Current password<input name="currentPassword" type="password" autocomplete="current-password" maxlength="200" required></label><label>New password <small>Minimum 10 characters</small><input name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><button class="secondary" type="submit">Change password</button></form></section>`;
+  return page("Account", `<div class="account-layout">${status}<div class="account-tools">${extend}${security}</div></div>`, user);
 }
 
 function legalLayout(label: string, title: string, introduction: string, sections: string): string {
@@ -399,7 +532,7 @@ export function vehicleListView(user: SessionUser, cars: Array<Record<string, un
   }).join("");
   const cards = cars.map((car) => `<article class="vehicle-card" data-vehicle-card data-brand="${escapeHtml(String(car.brand_name || "").toLowerCase())}" data-search="${escapeHtml(`${car.brand_name || ""} ${car.name || ""} ${car.code || ""}`.toLowerCase())}"><div class="vehicle-card__media"><img src="${escapeHtml(car.image_path)}" alt="${escapeHtml(car.name)}" loading="lazy"><span class="availability"><i></i> Manual available</span></div><div class="vehicle-card__body"><span class="section-label">${escapeHtml(car.brand_name)}</span><h2>${escapeHtml(car.name)}</h2><p>${escapeHtml(englishVehicleDescription(car))}</p><a class="card-link" href="/vehicles/${escapeHtml(car.id)}"><span>Open service manual</span><span aria-hidden="true">→</span></a></div></article>`).join("");
   const accessRemaining = user.role === "customer"
-    ? `<a class="library-access-time" href="/access"><span>Access remaining</span><strong>${escapeHtml(accessTimeRemaining(user))}</strong></a>`
+    ? `<a class="library-access-time" href="/account"><span>Access remaining</span><strong>${escapeHtml(accessTimeRemaining(user))}</strong></a>`
     : "";
   return page("Vehicle library", `<section class="library-hero"><div><span class="section-label">Member workspace</span><h1>Vehicle repair library</h1><p>Welcome back, ${escapeHtml(user.name)}. Choose a vehicle to browse its recovered technical documentation.</p></div><div class="library-meta"><div><strong>${cars.length}</strong><span>vehicles available</span></div>${accessRemaining}</div></section><nav class="vehicle-brand-tabs" aria-label="Vehicle brands"><button class="is-active" type="button" data-brand-filter="" aria-pressed="true"><span>All brands</span><small>${cars.length} vehicles</small></button>${brandTabs}</nav><section class="library-toolbar" aria-label="Vehicle filters"><label class="search-field"><span class="sr-only">Search vehicles</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search by vehicle or model" data-vehicle-search autocomplete="off"></label><p><strong data-result-count>${cars.length}</strong> vehicles</p></section><section class="vehicle-grid">${cards}</section><p class="empty-results" data-empty-results hidden>No vehicles match your filters.</p>`, user);
 }
@@ -587,12 +720,15 @@ export function adminCodesView(user: SessionUser, codes: Array<Record<string, un
     const state = Number(row.is_used) === 1 ? "used" : Number(row.status) === 1 ? "available" : "disabled";
     counts[state] += 1;
     const label = state === "available" ? "Available" : state === "used" ? "Used" : "Disabled";
-    return `<tr data-code-admin-row data-code-state="${state}" data-search="${escapeHtml(String(row.code || "").toLowerCase())}"><td><code>${escapeHtml(row.code)}</code></td><td>${escapeHtml(formatAccessDuration(row.duration_hours))}</td><td><span class="status-pill status-pill--${state === "available" ? "active" : state === "used" ? "neutral" : "disabled"}">${label}</span></td><td><a href="/admin/codes/${escapeHtml(row.id)}/edit">Edit</a></td></tr>`;
+    const redemption = state === "used"
+      ? row.redeemed_by_user_id ? `Member #${escapeHtml(row.redeemed_by_user_id)}${row.redeemed_at ? `<small>${escapeHtml(String(row.redeemed_at).replace("T", " ").slice(0, 16))} UTC</small>` : ""}` : "Legacy redemption"
+      : "—";
+    return `<tr data-code-admin-row data-code-state="${state}" data-search="${escapeHtml(`${row.code || ""} ${row.redeemed_by_user_id || ""}`.toLowerCase())}"><td><code>${escapeHtml(row.code)}</code></td><td>${escapeHtml(formatAccessDuration(row.duration_hours))}</td><td><span class="status-pill status-pill--${state === "available" ? "active" : state === "used" ? "neutral" : "disabled"}">${label}</span></td><td class="code-redemption">${redemption}</td><td><a href="/admin/codes/${escapeHtml(row.id)}/edit">Edit</a></td></tr>`;
   }).join("");
   const notice = generated ? `<div class="success">${generated} authorization code${generated === 1 ? "" : "s"} generated. They are listed under Available.</div>` : message(saved);
   const filters = `<div class="admin-filter-bar" role="group" aria-label="Filter authorization codes"><button class="is-active" type="button" data-code-filter="available" aria-pressed="true">Available <span>${counts.available}</span></button><button type="button" data-code-filter="used" aria-pressed="false">Used <span>${counts.used}</span></button><button type="button" data-code-filter="disabled" aria-pressed="false">Disabled <span>${counts.disabled}</span></button><button type="button" data-code-filter="" aria-pressed="false">All <span>${counts.all}</span></button></div>`;
   const bulkForm = `<section class="bulk-code-panel"><div><span class="section-label">Batch access</span><h2>Generate multiple codes</h2><p>Create up to 100 unique, one-time authorization codes with the same access duration.</p></div><form method="post" action="/admin/codes/bulk" class="bulk-code-form">${csrf(user)}<label>Quantity<input name="count" type="number" min="1" max="100" value="10" required></label><label>Access period<select name="durationHours" required><option value="720">30 days</option><option value="2160">90 days</option><option value="4380">6 months</option><option value="8760">1 year</option></select></label><label>Prefix <small>Optional</small><input name="prefix" maxlength="16" pattern="[A-Za-z0-9_-]+" placeholder="DEALER"></label><button class="primary" type="submit">Generate codes</button></form></section>`;
-  const codeTable = `<div class="table-wrap"><table><thead><tr><th>Authorization code</th><th>Access period</th><th>State</th><th></th></tr></thead><tbody>${rows}</tbody></table><div class="empty table-empty" data-code-empty hidden>No authorization codes match this filter.</div></div>`;
+  const codeTable = `<div class="table-wrap"><table><thead><tr><th>Authorization code</th><th>Access period</th><th>State</th><th>Redeemed by</th><th></th></tr></thead><tbody>${rows}</tbody></table><div class="empty table-empty" data-code-empty hidden>No authorization codes match this filter.</div></div>`;
   return page("Manage authorization codes", `<div class="page-heading"><div><a href="/admin">← Dashboard</a><h1>Authorization codes</h1><p>Codes are single-use. Redeemed codes remain in the Used list for audit and cannot be redeemed again.</p></div><a class="secondary button" href="/admin/codes/new">Add one code</a></div>${notice}${bulkForm}<div class="admin-list-tools"><label class="search-field search-field--compact"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search code" autocomplete="off" data-code-admin-search></label>${filters}<span class="admin-result-count"><strong data-code-result-count>${counts.available}</strong> codes shown</span></div>${codeTable}`, user);
 }
 

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashPassword, verifyPassword } from "./password.js";
 import type {
   AppRepository,
+  AuthorizationCodeRedemption,
   BlogPostInput,
   CodeInput,
   ContactRequestInput,
@@ -136,6 +137,27 @@ export class SupabaseRepository implements AppRepository {
     if (!token) return;
     const { error } = await this.client.from("app_sessions").delete().eq("token_hash", sha256(token));
     assertNoError(error, "Cannot delete application session");
+  }
+
+  async changeOwnPassword(userId: number, currentPasswordHash: string, newPasswordHash: string): Promise<boolean> {
+    const { data, error } = await this.client.rpc("change_app_password", {
+      p_user_id: userId,
+      p_current_password_hash: currentPasswordHash,
+      p_new_password_hash: newPasswordHash,
+    });
+    assertNoError(error, "Cannot change account password");
+    return data === true;
+  }
+
+  async redeemAuthorizationCode(userId: number, code: string): Promise<AuthorizationCodeRedemption> {
+    const { data, error } = await this.client.rpc("redeem_app_authorization_code", {
+      p_user_id: userId,
+      p_auth_code: code,
+    });
+    assertNoError(error, "Cannot redeem authorization code");
+    if (!data || data.status === "invalid") return { status: "invalid" };
+    if (data.status === "already-unlimited") return { status: "already-unlimited" };
+    return { status: "redeemed", vipExpiresAt: data.vip_expires_at ?? null };
   }
 
   async registerCustomer(input: { email: string; name: string; authCode: string; passwordHash: string }): Promise<number | null> {
@@ -438,7 +460,7 @@ export class SupabaseRepository implements AppRepository {
 
   async listCodes(): Promise<DataRecord[]> {
     const rows = await collectPages((from, to) => this.client.from("authorization_codes")
-      .select("id,code,duration_hours,is_used,status")
+      .select("id,code,duration_hours,is_used,status,redeemed_by_user_id,redeemed_at")
       .order("id", { ascending: false })
       .range(from, to));
     return rows as unknown as DataRecord[];
@@ -446,7 +468,7 @@ export class SupabaseRepository implements AppRepository {
 
   async getCode(id: number): Promise<DataRecord | null> {
     const { data, error } = await this.client.from("authorization_codes")
-      .select("id,code,duration_hours,is_used,status")
+      .select("id,code,duration_hours,is_used,status,redeemed_by_user_id,redeemed_at")
       .eq("id", id)
       .maybeSingle();
     assertNoError(error, "Cannot read authorization code");

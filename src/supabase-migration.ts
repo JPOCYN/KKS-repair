@@ -157,6 +157,8 @@ export function readSupabaseMigrationDataset(databaseFile: string): SupabaseMigr
       expires_at: nullableString(row.expires_at),
       is_used: booleanValue(row.is_used),
       status: booleanValue(row.status),
+      redeemed_by_user_id: null,
+      redeemed_at: null,
       created_at: nullableString(row.created_at),
     }));
     const manualMenu = orderManualMenuRows(queryRows(database, `
@@ -195,4 +197,3 @@ export function migrationCounts(dataset: SupabaseMigrationDataset): Record<keyof
     manual_menu: dataset.manual_menu.length,
   };
 }
-

@@ -1,5 +1,5 @@
-const appPathPrefixes = ["/login", "/register", "/access", "/vehicles", "/admin", "/manuals", "/modern-manuals", "/internal", "/logout"];
-const publicPathPrefixes = ["/privacy", "/terms", "/contact", "/guides", "/tools", "/sitemap.xml"];
+const appPathPrefixes = ["/login", "/register", "/access", "/account", "/vehicles", "/admin", "/manuals", "/modern-manuals", "/internal", "/logout"];
+const publicPathPrefixes = ["/privacy", "/terms", "/contact", "/guides", "/repair-manuals", "/tools", "/sitemap.xml"];
 
 function normalizedOrigin(value: string | undefined): URL | null {
   if (!value) return null;
